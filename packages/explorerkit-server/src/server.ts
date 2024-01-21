@@ -31,18 +31,14 @@ interface DecodeTransactionsRequestBody {
 
 interface DecodedTransactions {
   error: string | null;
-  decodedInstructions: DecodedInstruction[] | null;
+  instructions: Instruction[] | null;
 }
 
-interface DecodedInstruction {
+interface Instruction {
   programId: string;
-  name: string;
-  data: any;
-}
-
-interface GenericInstruction {
-  programId: string;
-  data: Uint8Array;
+  encodedData: string;
+  decodedData: any | null;
+  name: string | null;
 }
 
 const app: Express = express();
@@ -91,8 +87,8 @@ app.post("/decode/accounts", async (req: Request, res: Response) => {
   return res.status(200).json({ decodedAccounts });
 });
 
-// Endpoint to decode transactions
-app.post("/decode/transactions", async (req: Request, res: Response) => {
+// Endpoint to decode instructions for a list of transactions
+app.post("/decode/instructions", async (req: Request, res: Response) => {
   const { transactions } = req.body as DecodeTransactionsRequestBody;
 
   let instructionParsers: { [key: string]: InstructionParserInterface } = {};
@@ -104,42 +100,46 @@ app.post("/decode/transactions", async (req: Request, res: Response) => {
     } else if (isValidBase64(encodedTx)) {
       txBuffer = Buffer.from(encodedTx, "base64");
     } else {
-      decodedTransactions.push({ error: "'transaction' is not a valid base64 string.", decodedInstructions: null });
+      decodedTransactions.push({ error: "'transaction' is not a valid base64 string.", instructions: null });
       continue;
     }
 
     try {
       const tx = VersionedTransaction.deserialize(txBuffer);
-      let instructions: GenericInstruction[] = [];
+      let instructions: Instruction[] = [];
       if (tx.message instanceof Message) {
         for (var ix of tx.message.instructions) {
           let programId = tx.message.accountKeys[ix.programIdIndex];
           if (programId === undefined) {
-            decodedTransactions.push({ error: "programId not found in accounts", decodedInstructions: null });
+            decodedTransactions.push({ error: "programId not found in accounts", instructions: null });
             continue;
           }
           instructions.push({
             programId: programId.toString(), // We know programId will exist
-            data: bs58.decode(ix.data),
+            encodedData: ix.data,
+            name: null,
+            decodedData: null,
           });
         }
       } else if (tx.message instanceof MessageV0) {
         for (var inst of tx.message.compiledInstructions) {
           let programId = tx.message.staticAccountKeys[inst.programIdIndex];
           if (programId === undefined) {
-            decodedTransactions.push({ error: "programId not found in staticAccountKeys", decodedInstructions: null });
+            decodedTransactions.push({ error: "programId not found in staticAccountKeys", instructions: null });
             continue;
           }
           instructions.push({
             programId: programId.toString(),
-            data: inst.data,
+            encodedData: bs58.encode(inst.data),
+            name: null,
+            decodedData: null,
           });
         }
       } else {
         throw new Error("Unsupported message version");
       }
 
-      let decodedInstructions: any[] = [];
+      let finalInstructions: Instruction[] = [];
       for (var instruction of instructions) {
         const programId = instruction.programId.toString();
         let instructionParser = instructionParsers[programId];
@@ -151,19 +151,24 @@ app.post("/decode/transactions", async (req: Request, res: Response) => {
             instructionParser = parser.createParser(ParserType.INSTRUCTION) as InstructionParserInterface;
             instructionParsers[programId] = instructionParser;
           } else {
-            decodedTransactions.push({ error: "Failed to find program IDL", decodedInstructions: null });
+            finalInstructions.push(instruction);
             continue;
           }
         }
 
         // Parse the transaction
-        const decodedInstruction = instructionParser.parseInstructions(bs58.encode(instruction.data));
-        decodedInstructions.push({ name: decodedInstruction?.name, data: decodedInstruction?.data, programId });
+        const decodedInstruction = instructionParser.parseInstructions(instruction.encodedData);
+        finalInstructions.push({
+          programId: instruction.programId,
+          encodedData: instruction.encodedData,
+          name: decodedInstruction?.name || null,
+          decodedData: decodedInstruction?.data || null,
+        });
       }
 
-      decodedTransactions.push({ error: null, decodedInstructions });
+      decodedTransactions.push({ error: null, instructions: finalInstructions });
     } catch (e: any) {
-      decodedTransactions.push({ error: e.message, decodedInstructions: null });
+      decodedTransactions.push({ error: e.message, instructions: null });
     }
   }
 
