@@ -22,8 +22,8 @@ RUN pnpm install
 # Compile TypeScript to JavaScript
 RUN pnpm build
 
-# Expose port 3000 to the outside world
-EXPOSE 3000
+# Expose port to the outside world
+EXPOSE 8000
 
 # Command to run the application
 CMD [ "node", "./dist/index.js" ]
