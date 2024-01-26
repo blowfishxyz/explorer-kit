@@ -46,6 +46,11 @@ const app: Express = express();
 app.use(bodyParser.json());
 
 // Endpoint to decode accounts data
+app.get("/healthz", async (_req: Request, res: Response) => {
+  return res.status(200).json({ status: "OK" });
+});
+
+// Endpoint to decode accounts data
 app.post("/decode/accounts", async (req: Request, res: Response) => {
   const { accounts } = req.body as DecodeAccountsRequestBody;
 
