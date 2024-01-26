@@ -73,6 +73,16 @@ app.get("/healthz", async (_req: Request, res: Response) => {
 });
 
 // Endpoint to decode accounts data
+app.get("/stats", async (_req: Request, res: Response) => {
+  return res
+    .status(200)
+    .json({
+      instructionParsersCacheStats: instructionParsersCache.getStats(),
+      accountParsersCacheStats: accountParsersCache.getStats(),
+    });
+});
+
+// Endpoint to decode accounts data
 app.post("/decode/accounts", async (req: Request, res: Response) => {
   const { accounts } = req.body as DecodeAccountsRequestBody;
 
@@ -146,6 +156,8 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
     }
     decodedTransactions.push(decodedTransaction);
   }
+
+  console.log(instructionParsersCache.getStats());
 
   return res.status(200).json({ decodedTransactions });
 });
