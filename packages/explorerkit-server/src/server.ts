@@ -2,8 +2,8 @@ import { Message, MessageV0, VersionedTransaction } from "@solana/web3.js";
 import { AccountParserInterface, InstructionParserInterface, ParserType, SolanaFMParser } from "@solanafm/explorer-kit";
 import { getProgramIdl } from "@solanafm/explorer-kit-idls";
 import bodyParser from "body-parser";
-import bs58 from "bs58";
 import express, { Express, Request, Response } from "express";
+import NodeCache from "node-cache";
 
 interface Account {
   ownerProgram: string;
@@ -42,6 +42,28 @@ interface Instruction {
   accountKeys: string[];
 }
 
+// Cache that evicts anything unused in the last 10mins
+let thirty_mins_in_seconds = 1800;
+const instructionParsersCache = new NodeCache({ stdTTL: thirty_mins_in_seconds, checkperiod: 120 });
+const accountParsersCache = new NodeCache({ stdTTL: thirty_mins_in_seconds, checkperiod: 120 });
+
+// NOTE(fabio): If we cannot find a parser for a programId, we insert null into the cache
+// We want to periodically evict these null entries so that we retry fetching them periodically
+// in case they are now available
+function evictNullEntries(cache: NodeCache) {
+  const keys = cache.keys();
+  for (const key of keys) {
+    const value = cache.get(key);
+    if (value === null) {
+      cache.del(key);
+    }
+  }
+}
+
+const seventy_mins_in_miliseconds = 4200000;
+setInterval(evictNullEntries.bind(null, instructionParsersCache), seventy_mins_in_miliseconds);
+setInterval(evictNullEntries.bind(null, accountParsersCache), seventy_mins_in_miliseconds);
+
 const app: Express = express();
 app.use(bodyParser.json());
 
@@ -54,7 +76,6 @@ app.get("/healthz", async (_req: Request, res: Response) => {
 app.post("/decode/accounts", async (req: Request, res: Response) => {
   const { accounts } = req.body as DecodeAccountsRequestBody;
 
-  let accountParsers: { [key: string]: AccountParserInterface } = {};
   let decodedAccounts: DecodedAccount[] = [];
   for (var account of accounts) {
     if (!isValidBase58(account.ownerProgram)) {
@@ -66,17 +87,23 @@ app.post("/decode/accounts", async (req: Request, res: Response) => {
       continue;
     }
 
-    let accountParser = accountParsers[account.ownerProgram];
-    if (accountParser == undefined) {
+    // TODO(fabio): Store failed lookups too
+    let accountParser = accountParsersCache.get(account.ownerProgram) as AccountParserInterface;
+    if (accountParser === undefined) {
       const SFMIdlItem = await getProgramIdl(account.ownerProgram);
       if (SFMIdlItem === null) {
+        accountParsersCache.set(account.ownerProgram, null);
         decodedAccounts.push({ error: "Failed to find program IDL", decodedData: null });
         continue;
       }
 
       const parser = new SolanaFMParser(SFMIdlItem, account.ownerProgram);
       accountParser = parser.createParser(ParserType.ACCOUNT) as AccountParserInterface;
-      accountParsers[account.ownerProgram] = accountParser;
+      accountParsersCache.set(account.ownerProgram, accountParser);
+    } else if (accountParser == null) {
+      // Didn't find parser last time we checked
+      decodedAccounts.push({ error: "Failed to find program IDL", decodedData: null });
+      continue;
     }
 
     // Parse the transaction
@@ -102,16 +129,15 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
 
   const { instructionsPerTransaction } = req.body as DecodeTransactionsRequestBody;
 
-  let instructionParsers: { [key: string]: InstructionParserInterface } = {};
   let decodedTransactions: TopLevelInstruction[][] = [];
   for (var transactionInstructions of instructionsPerTransaction) {
     let decodedTransaction: TopLevelInstruction[] = [];
     for (var instruction of transactionInstructions) {
       // First decode top level ix, then all nested ixs
-      let decodedTopLevelInstruction = await decodeInstruction(instructionParsers, instruction.topLevelInstruction);
+      let decodedTopLevelInstruction = await decodeInstruction(instruction.topLevelInstruction);
       let decodedInnerInstruction = [];
       for (var inner_instruction of instruction.flattenedInnerInstructions) {
-        decodedInnerInstruction.push(await decodeInstruction(instructionParsers, inner_instruction));
+        decodedInnerInstruction.push(await decodeInstruction(inner_instruction));
       }
       decodedTransaction.push({
         topLevelInstruction: decodedTopLevelInstruction,
@@ -124,10 +150,7 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
   return res.status(200).json({ decodedTransactions });
 });
 
-async function decodeInstruction(
-  instructionParsers: { [key: string]: InstructionParserInterface },
-  instruction: Instruction
-): Promise<Instruction> {
+async function decodeInstruction(instruction: Instruction): Promise<Instruction> {
   const programId = instruction.programId.toString();
   let parsedInstruction = {
     programId: programId.toString(),
@@ -137,16 +160,20 @@ async function decodeInstruction(
     accountKeys: instruction.accountKeys,
   };
 
-  let instructionParser = instructionParsers[programId];
-  if (instructionParser == undefined) {
+  let instructionParser = instructionParsersCache.get(programId) as InstructionParserInterface;
+  // If we've never seen the programId before, try to fetch the IDL
+  if (instructionParser === undefined) {
     const SFMIdlItem = await getProgramIdl(programId);
-    if (SFMIdlItem) {
+    if (SFMIdlItem != undefined) {
       const parser = new SolanaFMParser(SFMIdlItem, programId);
       instructionParser = parser.createParser(ParserType.INSTRUCTION) as InstructionParserInterface;
-      instructionParsers[programId] = instructionParser;
+      instructionParsersCache.set(programId, instructionParser);
     } else {
-      return parsedInstruction;
+      instructionParsersCache.set(programId, null); // Insert into cache to avoid trying to fetch IDL again
+      return parsedInstruction; // Short-circuit
     }
+  } else if (instructionParser == null) {
+    return parsedInstruction; // Short-circuit
   }
 
   // Parse the transaction
