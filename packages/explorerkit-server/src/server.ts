@@ -65,7 +65,7 @@ setInterval(evictNullEntries.bind(null, instructionParsersCache), seventy_mins_i
 setInterval(evictNullEntries.bind(null, accountParsersCache), seventy_mins_in_miliseconds);
 
 const app: Express = express();
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: "50mb" }));
 
 // Endpoint to decode accounts data
 app.get("/healthz", async (_req: Request, res: Response) => {
@@ -74,12 +74,10 @@ app.get("/healthz", async (_req: Request, res: Response) => {
 
 // Endpoint to decode accounts data
 app.get("/stats", async (_req: Request, res: Response) => {
-  return res
-    .status(200)
-    .json({
-      instructionParsersCacheStats: instructionParsersCache.getStats(),
-      accountParsersCacheStats: accountParsersCache.getStats(),
-    });
+  return res.status(200).json({
+    instructionParsersCacheStats: instructionParsersCache.getStats(),
+    accountParsersCacheStats: accountParsersCache.getStats(),
+  });
 });
 
 // Endpoint to decode accounts data
