@@ -155,8 +155,6 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
     decodedTransactions.push(decodedTransaction);
   }
 
-  console.log(instructionParsersCache.getStats());
-
   return res.status(200).json({ decodedTransactions });
 });
 
