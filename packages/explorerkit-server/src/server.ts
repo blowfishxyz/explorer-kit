@@ -135,27 +135,32 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid request body" });
   }
 
-  const { instructionsPerTransaction } = req.body as DecodeTransactionsRequestBody;
+  try {
+    const { instructionsPerTransaction } = req.body as DecodeTransactionsRequestBody;
 
-  let decodedTransactions: TopLevelInstruction[][] = [];
-  for (var transactionInstructions of instructionsPerTransaction) {
-    let decodedTransaction: TopLevelInstruction[] = [];
-    for (var instruction of transactionInstructions) {
-      // First decode top level ix, then all nested ixs
-      let decodedTopLevelInstruction = await decodeInstruction(instruction.topLevelInstruction);
-      let decodedInnerInstruction = [];
-      for (var inner_instruction of instruction.flattenedInnerInstructions) {
-        decodedInnerInstruction.push(await decodeInstruction(inner_instruction));
+    let decodedTransactions: TopLevelInstruction[][] = [];
+    for (var transactionInstructions of instructionsPerTransaction) {
+      let decodedTransaction: TopLevelInstruction[] = [];
+      for (var instruction of transactionInstructions) {
+        // First decode top level ix, then all nested ixs
+        let decodedTopLevelInstruction = await decodeInstruction(instruction.topLevelInstruction);
+        let decodedInnerInstruction = [];
+        for (var inner_instruction of instruction.flattenedInnerInstructions) {
+          decodedInnerInstruction.push(await decodeInstruction(inner_instruction));
+        }
+        decodedTransaction.push({
+          topLevelInstruction: decodedTopLevelInstruction,
+          flattenedInnerInstructions: decodedInnerInstruction,
+        });
       }
-      decodedTransaction.push({
-        topLevelInstruction: decodedTopLevelInstruction,
-        flattenedInnerInstructions: decodedInnerInstruction,
-      });
+      decodedTransactions.push(decodedTransaction);
     }
-    decodedTransactions.push(decodedTransaction);
-  }
 
-  return res.status(200).json({ decodedTransactions });
+    return res.status(200).json({ decodedTransactions });
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ error: e.message });
+  }
 });
 
 async function decodeInstruction(instruction: Instruction): Promise<Instruction> {
