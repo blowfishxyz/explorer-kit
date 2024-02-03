@@ -15,7 +15,6 @@ interface DecodeAccountsRequestBody {
 }
 
 interface DecodedAccount {
-  error: string | null;
   decodedData: DecodedAccountData | null;
 }
 
@@ -44,8 +43,7 @@ interface Instruction {
 
 // Cache that evicts anything unused in the last 10mins
 let thirty_mins_in_seconds = 1800;
-const instructionParsersCache = new NodeCache({ stdTTL: thirty_mins_in_seconds, checkperiod: 120 });
-const accountParsersCache = new NodeCache({ stdTTL: thirty_mins_in_seconds, checkperiod: 120 });
+const parsersCache = new NodeCache({ stdTTL: thirty_mins_in_seconds, checkperiod: 120 });
 
 // NOTE(fabio): If we cannot find a parser for a programId, we insert null into the cache
 // We want to periodically evict these null entries so that we retry fetching them periodically
@@ -61,8 +59,7 @@ function evictNullEntries(cache: NodeCache) {
 }
 
 const seventy_mins_in_miliseconds = 4200000;
-setInterval(evictNullEntries.bind(null, instructionParsersCache), seventy_mins_in_miliseconds);
-setInterval(evictNullEntries.bind(null, accountParsersCache), seventy_mins_in_miliseconds);
+setInterval(evictNullEntries.bind(null, parsersCache), seventy_mins_in_miliseconds);
 
 const app: Express = express();
 app.use(bodyParser.json({ limit: "50mb" }));
@@ -75,54 +72,46 @@ app.get("/healthz", async (_req: Request, res: Response) => {
 // Endpoint to decode accounts data
 app.get("/stats", async (_req: Request, res: Response) => {
   return res.status(200).json({
-    instructionParsersCacheStats: instructionParsersCache.getStats(),
-    accountParsersCacheStats: accountParsersCache.getStats(),
+    parsersCacheStats: parsersCache.getStats(),
   });
 });
 
 // Endpoint to decode accounts data
 app.post("/decode/accounts", async (req: Request, res: Response) => {
-  // TODO(fabio): Improve validation of request body
   if (!req.body.accounts || !Array.isArray(req.body.accounts)) {
     return res.status(400).json({ error: "Invalid request body" });
   }
   const { accounts } = req.body as DecodeAccountsRequestBody;
+  for (var i = 0; i < accounts.length; i++) {
+    let account = accounts[i] as Account;
+    if (!isValidBase58(account.ownerProgram)) {
+      return res.status(400).json({ error: `'account.ownerProgram' at index ${i} is not a valid base58 string.` });
+    }
+    if (!isValidBase64(account.data)) {
+      return res.status(400).json({ error: `'account.data' at index ${i} is not a valid base64 string.` });
+    }
+  }
+
+  let allProgramIds = [];
+  for (var account of accounts) {
+    allProgramIds.push(account.ownerProgram);
+  }
+  await loadAllIdls(allProgramIds);
 
   try {
     let decodedAccounts: DecodedAccount[] = [];
     for (var account of accounts) {
-      if (!isValidBase58(account.ownerProgram)) {
-        decodedAccounts.push({ error: "'account.ownerProgram' is not a valid base58 string.", decodedData: null });
-        continue;
-      }
-      if (!isValidBase64(account.data)) {
-        decodedAccounts.push({ error: "'account.data' is not a valid base64 string.", decodedData: null });
-        continue;
-      }
-
-      // TODO(fabio): Store failed lookups too
-      let accountParser = accountParsersCache.get(account.ownerProgram) as AccountParserInterface;
-      if (accountParser === undefined) {
-        const SFMIdlItem = await getProgramIdl(account.ownerProgram);
-        if (SFMIdlItem === null) {
-          accountParsersCache.set(account.ownerProgram, null);
-          decodedAccounts.push({ error: "Failed to find program IDL", decodedData: null });
-          continue;
-        }
-
-        const parser = new SolanaFMParser(SFMIdlItem, account.ownerProgram);
-        accountParser = parser.createParser(ParserType.ACCOUNT) as AccountParserInterface;
-        accountParsersCache.set(account.ownerProgram, accountParser);
-      } else if (accountParser == null) {
+      let parser = parsersCache.get(account.ownerProgram) as SolanaFMParser;
+      if (parser === null) {
         // Didn't find parser last time we checked
-        decodedAccounts.push({ error: "Failed to find program IDL", decodedData: null });
+        decodedAccounts.push({ decodedData: null });
         continue;
       }
 
-      // Parse the transaction
+      // Parse the account
+      let accountParser = parser.createParser(ParserType.ACCOUNT) as AccountParserInterface;
       const decodedData = accountParser.parseAccount(account.data);
       decodedAccounts.push({
-        error: null,
         decodedData: decodedData
           ? { owner: account.ownerProgram, name: decodedData?.name, data: decodedData?.data }
           : null,
@@ -146,6 +135,9 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
 
   try {
     const { instructionsPerTransaction } = req.body as DecodeTransactionsRequestBody;
+
+    let allProgramIds = getProgramIds(instructionsPerTransaction);
+    await loadAllIdls(allProgramIds);
 
     let decodedTransactions: TopLevelInstruction[][] = [];
     for (var transactionInstructions of instructionsPerTransaction) {
@@ -172,6 +164,34 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
   }
 });
 
+async function loadAllIdls(programIds: string[]) {
+  let getProgramIdlFutures = [];
+  let programsWithMissingIdls = [];
+  for (var programId of programIds) {
+    let instructionParser = parsersCache.get(programId) as InstructionParserInterface;
+    // If we already seen the programId before, skip
+    if (instructionParser !== undefined || instructionParser === null) {
+      continue;
+    }
+
+    // We haven't seen the programId before, add call to fetch it's IDL
+    getProgramIdlFutures.push(getProgramIdl(programId));
+    programsWithMissingIdls.push(programId);
+  }
+
+  let SFMIdlItems = await Promise.all(getProgramIdlFutures);
+  for (var i = 0; i < SFMIdlItems.length; i++) {
+    let SFMIdlItem = SFMIdlItems[i];
+    let programId = programsWithMissingIdls[i] as string;
+    if (SFMIdlItem != undefined) {
+      const parser = new SolanaFMParser(SFMIdlItem, programId);
+      parsersCache.set(programId, parser);
+    } else {
+      parsersCache.set(programId, null); // Insert into cache to avoid trying to fetch IDL again
+    }
+  }
+}
+
 async function decodeInstruction(instruction: Instruction): Promise<Instruction> {
   const programId = instruction.programId.toString();
   let parsedInstruction = {
@@ -182,21 +202,11 @@ async function decodeInstruction(instruction: Instruction): Promise<Instruction>
     accountKeys: instruction.accountKeys,
   };
 
-  let instructionParser = instructionParsersCache.get(programId) as InstructionParserInterface;
-  // If we've never seen the programId before, try to fetch the IDL
-  if (instructionParser === undefined) {
-    const SFMIdlItem = await getProgramIdl(programId);
-    if (SFMIdlItem != undefined) {
-      const parser = new SolanaFMParser(SFMIdlItem, programId);
-      instructionParser = parser.createParser(ParserType.INSTRUCTION) as InstructionParserInterface;
-      instructionParsersCache.set(programId, instructionParser);
-    } else {
-      instructionParsersCache.set(programId, null); // Insert into cache to avoid trying to fetch IDL again
-      return parsedInstruction; // Short-circuit
-    }
-  } else if (instructionParser == null) {
-    return parsedInstruction; // Short-circuit
+  let parser = parsersCache.get(programId) as SolanaFMParser;
+  if (parser == null) {
+    return parsedInstruction; // Short-circuit without decodedData since IDL is missing
   }
+  let instructionParser = parser.createParser(ParserType.INSTRUCTION) as InstructionParserInterface;
 
   // Parse the transaction
   const decodedInstruction = instructionParser.parseInstructions(instruction.encodedData, instruction.accountKeys);
@@ -207,6 +217,21 @@ async function decodeInstruction(instruction: Instruction): Promise<Instruction>
     decodedData: decodedInstruction?.data || null,
     accountKeys: instruction.accountKeys,
   };
+}
+
+function getProgramIds(instructionsPerTransaction: TopLevelInstruction[][]): string[] {
+  let allProgramIds: string[] = [];
+  for (var transactionInstructions of instructionsPerTransaction) {
+    for (var instruction of transactionInstructions) {
+      allProgramIds.push(instruction.topLevelInstruction.programId);
+      for (var inner_instruction of instruction.flattenedInnerInstructions) {
+        allProgramIds.push(inner_instruction.programId);
+      }
+    }
+  }
+  // Dedup programIds
+  let dedupedProgramIds = new Set(allProgramIds);
+  return Array.from(dedupedProgramIds);
 }
 
 function isValidBase58(str: string): boolean {
