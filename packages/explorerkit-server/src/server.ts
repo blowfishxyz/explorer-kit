@@ -82,50 +82,59 @@ app.get("/stats", async (_req: Request, res: Response) => {
 
 // Endpoint to decode accounts data
 app.post("/decode/accounts", async (req: Request, res: Response) => {
+  // TODO(fabio): Improve validation of request body
+  if (!req.body.accounts || !Array.isArray(req.body.accounts)) {
+    return res.status(400).json({ error: "Invalid request body" });
+  }
   const { accounts } = req.body as DecodeAccountsRequestBody;
 
-  let decodedAccounts: DecodedAccount[] = [];
-  for (var account of accounts) {
-    if (!isValidBase58(account.ownerProgram)) {
-      decodedAccounts.push({ error: "'account.ownerProgram' is not a valid base58 string.", decodedData: null });
-      continue;
-    }
-    if (!isValidBase64(account.data)) {
-      decodedAccounts.push({ error: "'account.data' is not a valid base64 string.", decodedData: null });
-      continue;
-    }
+  try {
+    let decodedAccounts: DecodedAccount[] = [];
+    for (var account of accounts) {
+      if (!isValidBase58(account.ownerProgram)) {
+        decodedAccounts.push({ error: "'account.ownerProgram' is not a valid base58 string.", decodedData: null });
+        continue;
+      }
+      if (!isValidBase64(account.data)) {
+        decodedAccounts.push({ error: "'account.data' is not a valid base64 string.", decodedData: null });
+        continue;
+      }
 
-    // TODO(fabio): Store failed lookups too
-    let accountParser = accountParsersCache.get(account.ownerProgram) as AccountParserInterface;
-    if (accountParser === undefined) {
-      const SFMIdlItem = await getProgramIdl(account.ownerProgram);
-      if (SFMIdlItem === null) {
-        accountParsersCache.set(account.ownerProgram, null);
+      // TODO(fabio): Store failed lookups too
+      let accountParser = accountParsersCache.get(account.ownerProgram) as AccountParserInterface;
+      if (accountParser === undefined) {
+        const SFMIdlItem = await getProgramIdl(account.ownerProgram);
+        if (SFMIdlItem === null) {
+          accountParsersCache.set(account.ownerProgram, null);
+          decodedAccounts.push({ error: "Failed to find program IDL", decodedData: null });
+          continue;
+        }
+
+        const parser = new SolanaFMParser(SFMIdlItem, account.ownerProgram);
+        accountParser = parser.createParser(ParserType.ACCOUNT) as AccountParserInterface;
+        accountParsersCache.set(account.ownerProgram, accountParser);
+      } else if (accountParser == null) {
+        // Didn't find parser last time we checked
         decodedAccounts.push({ error: "Failed to find program IDL", decodedData: null });
         continue;
       }
 
-      const parser = new SolanaFMParser(SFMIdlItem, account.ownerProgram);
-      accountParser = parser.createParser(ParserType.ACCOUNT) as AccountParserInterface;
-      accountParsersCache.set(account.ownerProgram, accountParser);
-    } else if (accountParser == null) {
-      // Didn't find parser last time we checked
-      decodedAccounts.push({ error: "Failed to find program IDL", decodedData: null });
+      // Parse the transaction
+      const decodedData = accountParser.parseAccount(account.data);
+      decodedAccounts.push({
+        error: null,
+        decodedData: decodedData
+          ? { owner: account.ownerProgram, name: decodedData?.name, data: decodedData?.data }
+          : null,
+      });
       continue;
     }
 
-    // Parse the transaction
-    const decodedData = accountParser.parseAccount(account.data);
-    decodedAccounts.push({
-      error: null,
-      decodedData: decodedData
-        ? { owner: account.ownerProgram, name: decodedData?.name, data: decodedData?.data }
-        : null,
-    });
-    continue;
+    return res.status(200).json({ decodedAccounts });
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ error: e.message });
   }
-
-  return res.status(200).json({ decodedAccounts });
 });
 
 // Endpoint to decode instructions for a list of transactions
