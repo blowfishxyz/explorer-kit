@@ -25,7 +25,7 @@ interface DecodedAccountData {
 }
 
 interface DecodeTransactionsRequestBody {
-  instructionsPerTransaction: TopLevelInstruction[][];
+  instructionsPerTransaction: (TopLevelInstruction[] | null)[];
 }
 
 interface TopLevelInstruction {
@@ -41,7 +41,7 @@ interface Instruction {
   accountKeys: string[];
 }
 
-// Cache that evicts anything unused in the last 10mins
+// Cache that evicts anything unused in the last 30mins
 let thirty_mins_in_seconds = 1800;
 const parsersCache = new NodeCache({ stdTTL: thirty_mins_in_seconds, checkperiod: 120 });
 
@@ -139,8 +139,12 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
     let allProgramIds = getProgramIds(instructionsPerTransaction);
     await loadAllIdls(allProgramIds);
 
-    let decodedTransactions: TopLevelInstruction[][] = [];
+    let decodedTransactions: (TopLevelInstruction[] | null)[] = [];
     for (var transactionInstructions of instructionsPerTransaction) {
+      if (transactionInstructions === null) {
+        decodedTransactions.push(null);
+        continue;
+      }
       let decodedTransaction: TopLevelInstruction[] = [];
       for (var instruction of transactionInstructions) {
         // First decode top level ix, then all nested ixs
@@ -219,9 +223,10 @@ async function decodeInstruction(instruction: Instruction): Promise<Instruction>
   };
 }
 
-function getProgramIds(instructionsPerTransaction: TopLevelInstruction[][]): string[] {
+function getProgramIds(instructionsPerTransaction: (TopLevelInstruction[] | null)[]): string[] {
   let allProgramIds: string[] = [];
   for (var transactionInstructions of instructionsPerTransaction) {
+    if (transactionInstructions === null) continue; // Skip nulls
     for (var instruction of transactionInstructions) {
       allProgramIds.push(instruction.topLevelInstruction.programId);
       for (var inner_instruction of instruction.flattenedInnerInstructions) {
