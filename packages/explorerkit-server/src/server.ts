@@ -1,7 +1,7 @@
-import { Message, MessageV0, VersionedTransaction } from "@solana/web3.js";
 import { AccountParserInterface, InstructionParserInterface, ParserType, SolanaFMParser } from "@solanafm/explorer-kit";
 import { getProgramIdl } from "@solanafm/explorer-kit-idls";
 import bodyParser from "body-parser";
+import { Buffer } from "buffer";
 import express, { Express, Request, Response } from "express";
 import NodeCache from "node-cache";
 
@@ -214,13 +214,54 @@ async function decodeInstruction(instruction: Instruction): Promise<Instruction>
 
   // Parse the transaction
   const decodedInstruction = instructionParser.parseInstructions(instruction.encodedData, instruction.accountKeys);
+  const decodedInstructionWithTypes = instructionParser.parseInstructions(
+    instruction.encodedData,
+    instruction.accountKeys,
+    true
+  );
+  const finalDecodedInstructionData = postProcessDecodedInstruction(
+    decodedInstruction?.data,
+    decodedInstructionWithTypes?.data
+  );
   return {
     programId: instruction.programId,
     encodedData: instruction.encodedData,
     name: decodedInstruction?.name || null,
-    decodedData: decodedInstruction?.data || null,
+    decodedData: finalDecodedInstructionData || null,
     accountKeys: instruction.accountKeys,
   };
+}
+
+function postProcessDecodedInstruction(decodedInstructionData: any, decodedInstructionDataWithTypes: any): any {
+  if (decodedInstructionData === null || decodedInstructionDataWithTypes === null) {
+    return null;
+  }
+
+  Object.keys(decodedInstructionDataWithTypes).forEach((key) => {
+    const property = decodedInstructionDataWithTypes[key];
+    // If [[u8, X]],  base64 encode it
+    if (
+      typeof property.type === "object" &&
+      property.type.vec &&
+      Array.isArray(property.type.vec.array) &&
+      property.type.vec.array[0] === "u8"
+    ) {
+      const rawValue = decodedInstructionData[key];
+      if (rawValue && Array.isArray(rawValue) && Array.isArray(rawValue[0])) {
+        decodedInstructionData[key] = rawValue.map((arr: number[]) => Buffer.from(arr).toString("base64"));
+      }
+    }
+    // If [u8, X], base64 encode it
+    if (property.type.array && Array.isArray(property.type.array) && property.type.array[0] === "u8") {
+      // Base64 encode the byte array from decodedInstructionData
+      const byteArray = decodedInstructionData[key];
+      if (byteArray && Array.isArray(byteArray)) {
+        decodedInstructionData[key] = Buffer.from(byteArray).toString("base64");
+      }
+    }
+  });
+
+  return decodedInstructionData;
 }
 
 function getProgramIds(instructionsPerTransaction: (TopLevelInstruction[] | null)[]): string[] {
