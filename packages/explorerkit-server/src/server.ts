@@ -242,7 +242,7 @@ function postProcessDecodedInstruction(decodedInstructionData: any, decodedInstr
     // If [[u8, X]],  base64 encode it
     if (
       typeof property.type === "object" &&
-      property.type.vec &&
+      typeof property.type.vec === "object" &&
       Array.isArray(property.type.vec.array) &&
       property.type.vec.array[0] === "u8"
     ) {
@@ -252,7 +252,7 @@ function postProcessDecodedInstruction(decodedInstructionData: any, decodedInstr
       }
     }
     // If [u8, X], base64 encode it
-    if (property.type.array && Array.isArray(property.type.array) && property.type.array[0] === "u8") {
+    if (typeof property.type === "object" && Array.isArray(property.type.array) && property.type.array[0] === "u8") {
       // Base64 encode the byte array from decodedInstructionData
       const byteArray = decodedInstructionData[key];
       if (byteArray && Array.isArray(byteArray)) {
