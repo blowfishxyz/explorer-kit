@@ -4,6 +4,7 @@ import bodyParser from "body-parser";
 import { Buffer } from "buffer";
 import express, { Express, Request, Response } from "express";
 import NodeCache from "node-cache";
+import { collectDefaultMetrics, Gauge, Registry } from "prom-client";
 
 interface Account {
   ownerProgram: string;
@@ -41,9 +42,49 @@ interface Instruction {
   accountKeys: string[];
 }
 
+const register = new Registry();
+collectDefaultMetrics({ register });
+
+// Define custom metrics for NodeCache statistics
+const hitsGauge = new Gauge({
+  name: "nodecache_hits_total",
+  help: "Total number of cache hits",
+  registers: [register],
+});
+const missesGauge = new Gauge({
+  name: "nodecache_misses_total",
+  help: "Total number of cache misses",
+  registers: [register],
+});
+const keysGauge = new Gauge({
+  name: "nodecache_keys_total",
+  help: "Total number of keys in the cache",
+  registers: [register],
+});
+const ksizeGauge = new Gauge({
+  name: "nodecache_ksize_bytes",
+  help: "Total key size in bytes",
+  registers: [register],
+});
+const vsizeGauge = new Gauge({
+  name: "nodecache_vsize_bytes",
+  help: "Total value size in bytes",
+  registers: [register],
+});
+
 // Cache that evicts anything unused in the last 30mins
 let thirty_mins_in_seconds = 1800;
 const parsersCache = new NodeCache({ stdTTL: thirty_mins_in_seconds, checkperiod: 120 });
+
+// Update cache statistics in the metrics
+setInterval(() => {
+  const stats = parsersCache.getStats();
+  hitsGauge.set(stats.hits);
+  missesGauge.set(stats.misses);
+  keysGauge.set(stats.keys);
+  ksizeGauge.set(stats.ksize);
+  vsizeGauge.set(stats.vsize);
+}, 30000); // Update every 30sec
 
 // NOTE(fabio): If we cannot find a parser for a programId, we insert null into the cache
 // We want to periodically evict these null entries so that we retry fetching them periodically
@@ -74,6 +115,12 @@ app.get("/stats", async (_req: Request, res: Response) => {
   return res.status(200).json({
     parsersCacheStats: parsersCache.getStats(),
   });
+});
+
+// Expose the metrics at the /metrics endpoint
+app.get("/metrics", async (_req: Request, res: Response) => {
+  res.set("Content-Type", register.contentType);
+  res.end(await register.metrics());
 });
 
 // Endpoint to decode accounts data
