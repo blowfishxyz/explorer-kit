@@ -237,6 +237,7 @@ function postProcessDecodedInstruction(decodedInstructionData: any, decodedInstr
     return null;
   }
 
+  console.log(decodedInstructionDataWithTypes);
   Object.keys(decodedInstructionDataWithTypes).forEach((key) => {
     const property = decodedInstructionDataWithTypes[key];
     // If [[u8, X]],  base64 encode it
@@ -257,6 +258,13 @@ function postProcessDecodedInstruction(decodedInstructionData: any, decodedInstr
       const byteArray = decodedInstructionData[key];
       if (byteArray && Array.isArray(byteArray)) {
         decodedInstructionData[key] = Buffer.from(byteArray).toString("base64");
+      }
+    }
+    // If bytes, base64 encode it
+    if (property.type === "bytes") {
+      const bytes = decodedInstructionData[key];
+      if (bytes && bytes.constructor === Uint8Array) {
+        decodedInstructionData[key] = Buffer.from(bytes).toString("base64");
       }
     }
   });
