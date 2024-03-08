@@ -210,6 +210,14 @@ Also, huge thanks to the following projects and engineers for making this possib
 
 We welcome all contributions to Explorer Kit! Feel free to open a pull request or issues to discuss your ideas and suggestions. You may checkout our [contributing guide](/CONTRIBUTING.md) for more information on how to contribute to Explorer Kit.
 
+## Building Explorer Kit Server
+
+If building from an M1 MacBook, use the following command:
+
+```
+docker buildx build --platform linux/amd64 -t your_project/explorerkit-server:1.0.0 .
+```
+
 ## License
 
 Explorer Kit is licensed under the [GNU v3](/LICENSE)
