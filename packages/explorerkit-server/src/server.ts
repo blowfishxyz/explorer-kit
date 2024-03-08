@@ -237,7 +237,6 @@ function postProcessDecodedInstruction(decodedInstructionData: any, decodedInstr
     return null;
   }
 
-  console.log(decodedInstructionDataWithTypes);
   Object.keys(decodedInstructionDataWithTypes).forEach((key) => {
     const property = decodedInstructionDataWithTypes[key];
     // If [[u8, X]],  base64 encode it
