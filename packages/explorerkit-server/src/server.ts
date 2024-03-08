@@ -81,6 +81,14 @@ app.post("/decode/accounts", async (req: Request, res: Response) => {
   if (!req.body.accounts || !Array.isArray(req.body.accounts)) {
     return res.status(400).json({ error: "Invalid request body" });
   }
+  for (let account of req.body.accounts) {
+    if (!account.ownerProgram || typeof account.ownerProgram !== "string") {
+      return res.status(400).json({ error: "'account.ownerProgram' is required and must be a string." });
+    }
+    if (!account.data || typeof account.data !== "string") {
+      return res.status(400).json({ error: "'account.data' is required and must be a string." });
+    }
+  }
   const { accounts } = req.body as DecodeAccountsRequestBody;
   for (var i = 0; i < accounts.length; i++) {
     let account = accounts[i] as Account;
@@ -93,14 +101,14 @@ app.post("/decode/accounts", async (req: Request, res: Response) => {
   }
 
   let allProgramIds = [];
-  for (var account of accounts) {
+  for (let account of accounts) {
     allProgramIds.push(account.ownerProgram);
   }
   await loadAllIdls(allProgramIds);
 
   try {
     let decodedAccounts: DecodedAccount[] = [];
-    for (var account of accounts) {
+    for (let account of accounts) {
       let parser = parsersCache.get(account.ownerProgram) as SolanaFMParser;
       if (parser === null) {
         // Didn't find parser last time we checked
@@ -131,6 +139,37 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
   // TODO(fabio): Improve validation of request body
   if (!req.body.instructionsPerTransaction) {
     return res.status(400).json({ error: "Invalid request body" });
+  }
+  for (let instructions of req.body.instructionsPerTransaction) {
+    if (!Array.isArray(instructions) && instructions !== null) {
+      return res.status(400).json({ error: "Invalid request body" });
+    }
+    for (let instruction of instructions) {
+      if (!instruction.topLevelInstruction || !instruction.flattenedInnerInstructions) {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      let topLevelInstruction = instruction.topLevelInstruction;
+      if (
+        topLevelInstruction.programId === undefined ||
+        topLevelInstruction.encodedData === undefined ||
+        topLevelInstruction.accountKeys === undefined ||
+        !Array.isArray(topLevelInstruction.accountKeys) ||
+        !Array.isArray(instruction.flattenedInnerInstructions)
+      ) {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      let flattenedInnerInstructions = instruction.flattenedInnerInstructions;
+      for (let innerInstruction of flattenedInnerInstructions) {
+        if (
+          innerInstruction.programId === undefined ||
+          innerInstruction.encodedData === undefined ||
+          innerInstruction.accountKeys === undefined ||
+          !Array.isArray(innerInstruction.accountKeys)
+        ) {
+          return res.status(400).json({ error: "Invalid request body" });
+        }
+      }
+    }
   }
 
   try {
