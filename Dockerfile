@@ -23,7 +23,7 @@ RUN pnpm install
 RUN pnpm build
 
 # Expose port to the outside world
-EXPOSE 8000
+EXPOSE 3000
 
 # Command to run the application
 CMD [ "node", "./dist/index.js" ]
