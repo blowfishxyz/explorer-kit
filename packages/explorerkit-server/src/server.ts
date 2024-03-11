@@ -188,7 +188,7 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid request body" });
   }
   for (let instructions of req.body.instructionsPerTransaction) {
-    if (!Array.isArray(instructions) && instructions !== null) {
+    if (!Array.isArray(instructions)) {
       return res.status(400).json({ error: "Invalid request body" });
     }
     for (let instruction of instructions) {
