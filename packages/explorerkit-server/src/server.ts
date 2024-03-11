@@ -188,8 +188,11 @@ app.post("/decode/instructions", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid request body" });
   }
   for (let instructions of req.body.instructionsPerTransaction) {
-    if (!Array.isArray(instructions)) {
+    if (!Array.isArray(instructions) && instructions !== null) {
       return res.status(400).json({ error: "Invalid request body" });
+    }
+    if (instructions === null) {
+      continue;
     }
     for (let instruction of instructions) {
       if (!instruction.topLevelInstruction || !instruction.flattenedInnerInstructions) {
