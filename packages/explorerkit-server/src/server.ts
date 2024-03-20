@@ -2,9 +2,9 @@ import { AccountParserInterface, InstructionParserInterface, ParserType, SolanaF
 import { getProgramIdl } from "@solanafm/explorer-kit-idls";
 import bodyParser from "body-parser";
 import { Buffer } from "buffer";
-import express, { Express, Request, Response } from "express";
+import express, { Express, NextFunction, Request, Response } from "express";
 import NodeCache from "node-cache";
-import { collectDefaultMetrics, Gauge, Histogram, Registry } from "prom-client";
+import { collectDefaultMetrics,Gauge, Histogram, Registry } from "prom-client";
 
 interface Account {
   ownerProgram: string;
@@ -112,8 +112,7 @@ setInterval(evictNullEntries.bind(null, parsersCache), seventy_mins_in_milisecon
 const app: Express = express();
 app.use(bodyParser.json({ limit: "50mb" }));
 
-// Middleware to measure response times
-app.use((req, res, next) => {
+const responseDurationMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   const start = process.hrtime();
 
   res.on('finish', () => { // Event listener for when the response has been sent
@@ -126,7 +125,7 @@ app.use((req, res, next) => {
   });
 
   next();
-});
+};
 
 // Endpoint to decode accounts data
 app.get("/healthz", async (_req: Request, res: Response) => {
@@ -147,7 +146,7 @@ app.get("/metrics", async (_req: Request, res: Response) => {
 });
 
 // Endpoint to decode accounts data
-app.post("/decode/accounts", async (req: Request, res: Response) => {
+app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, res: Response) => {
   if (!req.body.accounts || !Array.isArray(req.body.accounts)) {
     return res.status(400).json({ error: "Invalid request body" });
   }
@@ -205,7 +204,7 @@ app.post("/decode/accounts", async (req: Request, res: Response) => {
 });
 
 // Endpoint to decode instructions for a list of transactions
-app.post("/decode/instructions", async (req: Request, res: Response) => {
+app.post("/decode/instructions", responseDurationMiddleware, async (req: Request, res: Response) => {
   // TODO(fabio): Improve validation of request body
   if (!req.body.instructionsPerTransaction) {
     return res.status(400).json({ error: "Invalid request body" });
