@@ -4,7 +4,7 @@ import bodyParser from "body-parser";
 import { Buffer } from "buffer";
 import express, { Express, Request, Response } from "express";
 import NodeCache from "node-cache";
-import { collectDefaultMetrics, Gauge, Registry } from "prom-client";
+import { collectDefaultMetrics, Gauge, Histogram, Registry } from "prom-client";
 
 interface Account {
   ownerProgram: string;
@@ -71,6 +71,13 @@ const vsizeGauge = new Gauge({
   help: "Total value size in bytes",
   registers: [register],
 });
+const httpRequestDurationMicroseconds = new Histogram({
+  name: 'http_request_duration_ms',
+  help: 'Duration of HTTP requests in ms',
+  labelNames: ['method', 'route', 'code'],
+  buckets: [0.1, 5, 15, 50, 100, 300, 500, 1000],
+  registers: [register],
+});
 
 // Cache that evicts anything unused in the last 30mins
 let thirty_mins_in_seconds = 1800;
@@ -104,6 +111,22 @@ setInterval(evictNullEntries.bind(null, parsersCache), seventy_mins_in_milisecon
 
 const app: Express = express();
 app.use(bodyParser.json({ limit: "50mb" }));
+
+// Middleware to measure response times
+app.use((req, res, next) => {
+  const start = process.hrtime();
+
+  res.on('finish', () => { // Event listener for when the response has been sent
+    const diff = process.hrtime(start);
+    const responseTimeInMs = diff[0] * 1e3 + diff[1] * 1e-6; // Convert to milliseconds
+
+    httpRequestDurationMicroseconds
+      .labels(req.method, req.path, res.statusCode.toString())
+      .observe(responseTimeInMs);
+  });
+
+  next();
+});
 
 // Endpoint to decode accounts data
 app.get("/healthz", async (_req: Request, res: Response) => {
