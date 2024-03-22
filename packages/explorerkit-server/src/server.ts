@@ -2,9 +2,9 @@ import { AccountParserInterface, InstructionParserInterface, ParserType, SolanaF
 import { getProgramIdl } from "@solanafm/explorer-kit-idls";
 import bodyParser from "body-parser";
 import { Buffer } from "buffer";
-import express, { Express, Request, Response } from "express";
+import express, { Express, NextFunction, Request, Response } from "express";
 import NodeCache from "node-cache";
-import { collectDefaultMetrics, Gauge, Registry } from "prom-client";
+import { collectDefaultMetrics,Gauge, Histogram, Registry } from "prom-client";
 
 interface Account {
   ownerProgram: string;
@@ -71,6 +71,13 @@ const vsizeGauge = new Gauge({
   help: "Total value size in bytes",
   registers: [register],
 });
+const httpRequestDurationMicroseconds = new Histogram({
+  name: 'http_request_duration_ms',
+  help: 'Duration of HTTP requests in ms',
+  labelNames: ['method', 'route', 'code'],
+  buckets: [0.1, 5, 15, 50, 100, 300, 500, 1000],
+  registers: [register],
+});
 
 // Cache that evicts anything unused in the last 30mins
 let thirty_mins_in_seconds = 1800;
@@ -105,6 +112,21 @@ setInterval(evictNullEntries.bind(null, parsersCache), seventy_mins_in_milisecon
 const app: Express = express();
 app.use(bodyParser.json({ limit: "50mb" }));
 
+const responseDurationMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+  const start = process.hrtime();
+
+  res.on('finish', () => { // Event listener for when the response has been sent
+    const diff = process.hrtime(start);
+    const responseTimeInMs = diff[0] * 1e3 + diff[1] * 1e-6; // Convert to milliseconds
+
+    httpRequestDurationMicroseconds
+      .labels(req.method, req.path, res.statusCode.toString())
+      .observe(responseTimeInMs);
+  });
+
+  next();
+};
+
 // Endpoint to decode accounts data
 app.get("/healthz", async (_req: Request, res: Response) => {
   return res.status(200).json({ status: "OK" });
@@ -124,7 +146,7 @@ app.get("/metrics", async (_req: Request, res: Response) => {
 });
 
 // Endpoint to decode accounts data
-app.post("/decode/accounts", async (req: Request, res: Response) => {
+app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, res: Response) => {
   if (!req.body.accounts || !Array.isArray(req.body.accounts)) {
     return res.status(400).json({ error: "Invalid request body" });
   }
@@ -182,7 +204,7 @@ app.post("/decode/accounts", async (req: Request, res: Response) => {
 });
 
 // Endpoint to decode instructions for a list of transactions
-app.post("/decode/instructions", async (req: Request, res: Response) => {
+app.post("/decode/instructions", responseDurationMiddleware, async (req: Request, res: Response) => {
   // TODO(fabio): Improve validation of request body
   if (!req.body.instructionsPerTransaction) {
     return res.status(400).json({ error: "Invalid request body" });
