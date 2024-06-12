@@ -1,5 +1,13 @@
 # Explorer Kit Server
 
+Configuration is done via environment variables. For local development, you can create `env.sample` into `.env` and fill in the values.
+
+```
+cp env.sample .env
+```
+
+Also make sure to run pnpm build in the root directory to build the shared dependencies.
+
 Build & watch
 
 ```
