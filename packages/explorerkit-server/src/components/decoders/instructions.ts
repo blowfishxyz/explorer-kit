@@ -1,7 +1,7 @@
 import { InstructionParserInterface, ParserType } from "@solanafm/explorer-kit";
 import { Buffer } from "buffer";
 
-import { IdlsMap } from "@/facade/idls";
+import { IdlsMap } from "@/components/idls";
 import { Instruction, TopLevelInstruction } from "@/types";
 
 export async function decodeInstruction(idls: IdlsMap, instruction: Instruction): Promise<Instruction> {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidBase58, isValidBase64 } from "./validation";
+import { isValidBase58, isValidBase64 } from "@/utils/validation";
 
 describe("validation", () => {
   describe("isValidBase58", () => {
