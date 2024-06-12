@@ -1,10 +1,17 @@
-import { AccountParserInterface, InstructionParserInterface, ParserType, SolanaFMParser } from "@solanafm/explorer-kit";
+import {
+  AccountParserInterface,
+  ErrorParserInterface,
+  InstructionParserInterface,
+  ParserType,
+  SolanaFMParser,
+} from "@solanafm/explorer-kit";
 import { getProgramIdl } from "@solanafm/explorer-kit-idls";
 import bodyParser from "body-parser";
 import { Buffer } from "buffer";
 import express, { Express, NextFunction, Request, Response } from "express";
 import NodeCache from "node-cache";
 import { collectDefaultMetrics,Gauge, Histogram, Registry } from "prom-client";
+import { z } from "zod";
 
 interface Account {
   ownerProgram: string;
@@ -37,9 +44,16 @@ interface TopLevelInstruction {
 interface Instruction {
   programId: string;
   encodedData: string;
-  decodedData: any | null;
-  name: string | null;
+  decodedData?: any | null;
+  name?: string | null;
   accountKeys: string[];
+}
+
+interface ProgramError {
+  programId: string;
+  errorCode?: number | null;
+  decodedData?: any;
+  name?: string | null;
 }
 
 const register = new Registry();
@@ -145,29 +159,27 @@ app.get("/metrics", async (_req: Request, res: Response) => {
   res.end(await register.metrics());
 });
 
+const decodeAccountsSchema = z.object({
+  accounts: z.array(z.object({
+    ownerProgram: z.string().refine(isValidBase58, {
+      message: "account.ownerProgram is not a valid base58 string",
+
+    }),
+    data: z.string().refine(isValidBase64, {
+      message: "account.data is not a valid base64 string",
+    }),
+  })),
+});
+
 // Endpoint to decode accounts data
 app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, res: Response) => {
-  if (!req.body.accounts || !Array.isArray(req.body.accounts)) {
-    return res.status(400).json({ error: "Invalid request body" });
+  const {data, error} = decodeAccountsSchema.safeParse(req.body);
+
+  if (error) {
+    return res.status(400).json({ error: "Invalid request body", errors: error.errors });
   }
-  for (let account of req.body.accounts) {
-    if (!account.ownerProgram || typeof account.ownerProgram !== "string") {
-      return res.status(400).json({ error: "'account.ownerProgram' is required and must be a string." });
-    }
-    if (!account.data || typeof account.data !== "string") {
-      return res.status(400).json({ error: "'account.data' is required and must be a string." });
-    }
-  }
-  const { accounts } = req.body as DecodeAccountsRequestBody;
-  for (var i = 0; i < accounts.length; i++) {
-    let account = accounts[i] as Account;
-    if (!isValidBase58(account.ownerProgram)) {
-      return res.status(400).json({ error: `'account.ownerProgram' at index ${i} is not a valid base58 string.` });
-    }
-    if (!isValidBase64(account.data)) {
-      return res.status(400).json({ error: `'account.data' at index ${i} is not a valid base64 string.` });
-    }
-  }
+
+  const {accounts} = data satisfies DecodeAccountsRequestBody;
 
   let allProgramIds = [];
   for (let account of accounts) {
@@ -193,7 +205,6 @@ app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, re
           ? { owner: account.ownerProgram, name: decodedData?.name, data: decodedData?.data }
           : null,
       });
-      continue;
     }
 
     return res.status(200).json({ decodedAccounts });
@@ -203,49 +214,53 @@ app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, re
   }
 });
 
+const decodeErrorsSchema = z.object({
+  errors: z.array(z.object({
+    programId: z.string(),
+    errorCode: z.coerce.number().nullable().optional(),
+  }).nullable()),
+});
+
+// Endpoint to decode program errors
+app.post("/decode/errors", responseDurationMiddleware, async (req: Request, res: Response) => {
+  const {data, error} = decodeErrorsSchema.safeParse(req.body);
+
+  if (error) {
+    return res.status(400).json({ error: "Invalid request body", errors: error.errors });
+  }
+
+  const programIdsWithFailure = data.errors.filter(err => err?.errorCode).map((err) => err?.programId).map(v => v!);
+  await loadAllIdls(programIdsWithFailure);
+  const decodedErrors = data.errors.map((error) => error && decodeProgramError(error))
+
+  return res.status(200).json({ decodedErrors });
+})
+
+const decodeInstructionsSchema = z.object({
+  instructionsPerTransaction: z.array(z.array(z.object({
+    topLevelInstruction: z.object({
+      programId: z.string(),
+      encodedData: z.string(),
+      accountKeys: z.array(z.string()),
+    }),
+    flattenedInnerInstructions: z.array(z.object({
+      programId: z.string(),
+      encodedData: z.string(),
+      accountKeys: z.array(z.string()),
+    })),
+  })).nullable()),
+});
+
 // Endpoint to decode instructions for a list of transactions
 app.post("/decode/instructions", responseDurationMiddleware, async (req: Request, res: Response) => {
-  // TODO(fabio): Improve validation of request body
-  if (!req.body.instructionsPerTransaction) {
-    return res.status(400).json({ error: "Invalid request body" });
-  }
-  for (let instructions of req.body.instructionsPerTransaction) {
-    if (!Array.isArray(instructions) && instructions !== null) {
-      return res.status(400).json({ error: "Invalid request body" });
-    }
-    if (instructions === null) {
-      continue;
-    }
-    for (let instruction of instructions) {
-      if (!instruction.topLevelInstruction || !instruction.flattenedInnerInstructions) {
-        return res.status(400).json({ error: "Invalid request body" });
-      }
-      let topLevelInstruction = instruction.topLevelInstruction;
-      if (
-        topLevelInstruction.programId === undefined ||
-        topLevelInstruction.encodedData === undefined ||
-        topLevelInstruction.accountKeys === undefined ||
-        !Array.isArray(topLevelInstruction.accountKeys) ||
-        !Array.isArray(instruction.flattenedInnerInstructions)
-      ) {
-        return res.status(400).json({ error: "Invalid request body" });
-      }
-      let flattenedInnerInstructions = instruction.flattenedInnerInstructions;
-      for (let innerInstruction of flattenedInnerInstructions) {
-        if (
-          innerInstruction.programId === undefined ||
-          innerInstruction.encodedData === undefined ||
-          innerInstruction.accountKeys === undefined ||
-          !Array.isArray(innerInstruction.accountKeys)
-        ) {
-          return res.status(400).json({ error: "Invalid request body" });
-        }
-      }
-    }
+  const {data, error} = decodeInstructionsSchema.safeParse(req.body);
+
+  if (error) {
+    return res.status(400).json({ error: "Invalid request body", errors: error.errors });
   }
 
   try {
-    const { instructionsPerTransaction } = req.body as DecodeTransactionsRequestBody;
+    const { instructionsPerTransaction } = data satisfies DecodeTransactionsRequestBody;
 
     let allProgramIds = getProgramIds(instructionsPerTransaction);
     await loadAllIdls(allProgramIds);
@@ -285,7 +300,7 @@ async function loadAllIdls(programIds: string[]) {
   for (var programId of programIds) {
     let instructionParser = parsersCache.get(programId) as InstructionParserInterface;
     // If we already seen the programId before, skip
-    if (instructionParser !== undefined || instructionParser === null) {
+    if (instructionParser !== undefined) {
       continue;
     }
 
@@ -343,8 +358,35 @@ async function decodeInstruction(instruction: Instruction): Promise<Instruction>
   };
 }
 
-function postProcessDecodedInstruction(decodedInstructionData: any, decodedInstructionDataWithTypes: any): any {
-  if (decodedInstructionData === null || decodedInstructionDataWithTypes === null) {
+function decodeProgramError(programError: ProgramError): ProgramError {
+  if (!programError.errorCode) {
+    return programError
+  }
+
+  const programId = programError.programId;
+  const parser = parsersCache.get<SolanaFMParser>(programId);
+
+  if (!parser) {
+    return programError;
+  }
+
+  const hexErrorCode = `0x${programError.errorCode.toString(16)}`;
+  const errorParser = parser.createParser(ParserType.ERROR) as ErrorParserInterface;
+  const parsedError = errorParser.parseError(hexErrorCode);
+
+  if (!parsedError) {
+    return programError;
+  }
+
+  return {
+    ...programError,
+    decodedData: parsedError.data,
+    name: parsedError.name,
+  }
+}
+
+function postProcessDecodedInstruction(decodedInstructionData?: any, decodedInstructionDataWithTypes?: any): any {
+  if (!decodedInstructionData || !decodedInstructionDataWithTypes) {
     return null;
   }
 
