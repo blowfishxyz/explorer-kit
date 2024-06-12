@@ -18,7 +18,7 @@ export async function initSharedDependencies(): Promise<SharedDependencies> {
 
 export function getSharedDeps(): SharedDependencies {
   if (!sharedDependencies) {
-    throw new Error("Shared dependencies not initialized. Please call initContainer() first.");
+    throw new Error("Shared dependencies not initialized. Please call initSharedDependencies() first.");
   }
 
   return sharedDependencies;
