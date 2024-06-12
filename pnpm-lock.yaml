@@ -99,9 +99,6 @@ importers:
       express:
         specifier: ^4.18.2
         version: 4.18.2
-      facade:
-        specifier: link:@/facade
-        version: link:@/facade
       prom-client:
         specifier: ^15.1.0
         version: 15.1.0
