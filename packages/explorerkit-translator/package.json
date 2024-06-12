@@ -1,6 +1,6 @@
 {
   "name": "@solanafm/explorer-kit",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Public Solana Data Parsers",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -24,7 +24,12 @@
     "lint:fix": "TIMING=1 eslint \"src/**/*.ts*\" --fix",
     "publish-package": "pnpm build && npm publish --access=public"
   },
-  "keywords": [],
+  "keywords": [
+    "solana",
+    "web3",
+    "parser",
+    "data-parser"
+  ],
   "author": "SolanaFM",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
@@ -34,11 +39,18 @@
     "tsconfig": "workspace:*",
     "vitest": "^0.34.2"
   },
+  "homepage": "https://github.com/solana-fm/explorer-kit#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/solana-fm/explorer-kit.git",
+    "directory": "packages/explorerkit-translator"
+  },
   "dependencies": {
     "@coral-xyz/anchor": "^0.28.1-beta.2",
     "@metaplex-foundation/umi": "^0.8.6",
     "@metaplex-foundation/umi-serializers": "^0.8.5",
+    "@solana/spl-type-length-value": "^0.1.0",
     "@solanafm/kinobi-lite": "^0.12.0",
-    "@solanafm/utils": "^0.3.0"
+    "@solanafm/utils": "^1.0.5"
   }
 }

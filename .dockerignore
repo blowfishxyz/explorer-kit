@@ -1,0 +1,7 @@
+npm-debug.log
+yarn-error.log
+./packages/explorerkit-server/node_modules
+./packages/explorerkit-translator/node_modules
+./packages/explorerkit-idls/node_modules
+./packages/eslint-config-explorerkit/node_modules
+node_modules
