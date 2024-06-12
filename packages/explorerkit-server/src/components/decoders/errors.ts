@@ -1,6 +1,6 @@
 import { ErrorParserInterface, ParserType } from "@solanafm/explorer-kit";
 
-import { IdlsMap } from "@/facade/idls";
+import { IdlsMap } from "@/components/idls";
 import { ProgramError } from "@/types";
 
 export function decodeProgramError(idls: IdlsMap, programError: ProgramError): ProgramError {

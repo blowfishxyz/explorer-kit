@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { decodeProgramError } from "@/facade/decoders/errors";
-import { loadAllIdls } from "@/facade/idls";
+import { decodeProgramError } from "@/components/decoders/errors";
+import { loadAllIdls } from "@/components/idls";
 
 vi.mock("@/core/shared-dependencies", (loadActual) => {
   const deps = {
