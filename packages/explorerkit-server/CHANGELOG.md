@@ -1,5 +1,52 @@
 # @solanafm/explorer-kit-server
 
+## 1.0.9
+
+### Patch Changes
+
+- Updated dependencies [394b2a7]
+  - @solanafm/explorer-kit-idls@1.1.3
+  - @solanafm/explorer-kit@1.1.3
+
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [b1ca99f]
+  - @solanafm/explorer-kit@1.1.3
+
+## 1.0.7
+
+### Patch Changes
+
+- Updated dependencies [d833b78]
+- Updated dependencies [daa0990]
+  - @solanafm/explorer-kit@1.1.2
+
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [30f749f]
+  - @solanafm/explorer-kit@1.1.1
+  - @solanafm/explorer-kit-idls@1.1.2
+
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [608cbc4]
+  - @solanafm/explorer-kit-idls@1.1.1
+  - @solanafm/explorer-kit@1.1.0
+
+## 1.0.4
+
+### Patch Changes
+
+- Updated dependencies [f666e44]
+  - @solanafm/explorer-kit@1.1.0
+  - @solanafm/explorer-kit-idls@1.1.0
+
 ## 1.0.3
 
 ### Patch Changes
