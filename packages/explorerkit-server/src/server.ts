@@ -1,11 +1,13 @@
 import { AccountParserInterface, ParserType, SolanaFMParser } from "@solanafm/explorer-kit";
 import bodyParser from "body-parser";
-import express, { Express, NextFunction, Request, Response } from "express";
-import { collectDefaultMetrics, Histogram, Registry } from "prom-client";
+import express, { Express, Request, Response } from "express";
+import { collectDefaultMetrics } from "prom-client";
 import { z } from "zod";
 
 import { decodeProgramError } from "./decoders/errors";
 import { decodeInstruction, getProgramIds } from "./decoders/instructions";
+import { register } from "./metrics";
+import { responseDurationMiddleware } from "./middlewares/metrics";
 import { loadAllIdls, parsersCache } from "./parsers-cache";
 import { Account, DecodedAccount, TopLevelInstruction } from "./types";
 import { isValidBase58, isValidBase64 } from "./utils/validation";
@@ -18,33 +20,10 @@ interface DecodeTransactionsRequestBody {
   instructionsPerTransaction: (TopLevelInstruction[] | null)[];
 }
 
-const register = new Registry();
 collectDefaultMetrics({ register });
-
-const httpRequestDurationMicroseconds = new Histogram({
-  name: "http_request_duration_ms",
-  help: "Duration of HTTP requests in ms",
-  labelNames: ["method", "route", "code"],
-  buckets: [0.1, 5, 15, 50, 100, 300, 500, 1000],
-  registers: [register],
-});
 
 const app: Express = express();
 app.use(bodyParser.json({ limit: "50mb" }));
-
-const responseDurationMiddleware = (req: Request, res: Response, next: NextFunction): void => {
-  const start = process.hrtime();
-
-  res.on("finish", () => {
-    // Event listener for when the response has been sent
-    const diff = process.hrtime(start);
-    const responseTimeInMs = diff[0] * 1e3 + diff[1] * 1e-6; // Convert to milliseconds
-
-    httpRequestDurationMicroseconds.labels(req.method, req.path, res.statusCode.toString()).observe(responseTimeInMs);
-  });
-
-  next();
-};
 
 // Endpoint to decode accounts data
 app.get("/healthz", async (_req: Request, res: Response) => {
