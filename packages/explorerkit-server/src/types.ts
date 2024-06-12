@@ -1,5 +1,3 @@
-
-
 export interface TopLevelInstruction {
   topLevelInstruction: Instruction;
   flattenedInnerInstructions: Instruction[];
