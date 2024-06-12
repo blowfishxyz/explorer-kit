@@ -878,7 +878,6 @@ describe("Server API Tests", () => {
           {
             programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
             errorCode: "0x1771",
-
           },
           null,
           {
@@ -888,7 +887,8 @@ describe("Server API Tests", () => {
           {
             programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
             errorCode: "0x23",
-          }],
+          },
+        ],
       });
 
     expect(res.status).toBe(200);
