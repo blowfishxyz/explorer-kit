@@ -1,29 +1,32 @@
-# Use official Node.js image as the base image
-FROM node:18
+#
+# Builder
+#
+FROM node:18-alpine AS builder
 
-# Set the working directory inside the container
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
-
-# Copy the rest of the application code to the working directory
 COPY . .
 
-# Install workspace dependencies
-RUN pnpm install
+RUN apk add --update --upgrade --no-cache \
+        alpine-sdk \
+        python3 \
+        ca-certificates \
+    && \
+    npm install -g pnpm@v8.6.10 && \
+    pnpm install && \
+    pnpm build
 
-# Move into the server package
-WORKDIR /usr/src/app/packages/explorerkit-server
+#
+# Runner
+#
 
-# Install dependencies
-RUN pnpm install
+FROM node:18-alpine
 
-# Compile TypeScript to JavaScript
-RUN pnpm build
+RUN apk add --update --upgrade --no-cache \
+        ca-certificates
 
-# Expose port to the outside world
-EXPOSE 3000
+WORKDIR /app
 
-# Command to run the application
-CMD [ "node", "./dist/index.js" ]
+COPY --from=builder /app .
+
+CMD [ "node", "./packages/explorerkit-server/dist/index.js"]
