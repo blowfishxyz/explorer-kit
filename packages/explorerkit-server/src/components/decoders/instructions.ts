@@ -1,10 +1,10 @@
-import { InstructionParserInterface, ParserType, SolanaFMParser } from "@solanafm/explorer-kit";
+import { InstructionParserInterface, ParserType } from "@solanafm/explorer-kit";
 import { Buffer } from "buffer";
 
-import { parsersCache } from "../parsers-cache";
-import { Instruction, TopLevelInstruction } from "../types";
+import { IdlsMap } from "@/facade/idls";
+import { Instruction, TopLevelInstruction } from "@/types";
 
-export async function decodeInstruction(instruction: Instruction): Promise<Instruction> {
+export async function decodeInstruction(idls: IdlsMap, instruction: Instruction): Promise<Instruction> {
   const programId = instruction.programId.toString();
   let parsedInstruction = {
     programId: programId.toString(),
@@ -14,7 +14,7 @@ export async function decodeInstruction(instruction: Instruction): Promise<Instr
     accountKeys: instruction.accountKeys,
   };
 
-  let parser = parsersCache.get(programId) as SolanaFMParser;
+  let parser = idls.get(programId);
   if (parser == null) {
     return parsedInstruction; // Short-circuit without decodedData since IDL is missing
   }
@@ -80,17 +80,10 @@ function postProcessDecodedInstruction(decodedInstructionData?: any, decodedInst
 }
 
 export function getProgramIds(instructionsPerTransaction: (TopLevelInstruction[] | null)[]): string[] {
-  let allProgramIds: string[] = [];
-  for (var transactionInstructions of instructionsPerTransaction) {
-    if (transactionInstructions === null) continue; // Skip nulls
-    for (var instruction of transactionInstructions) {
-      allProgramIds.push(instruction.topLevelInstruction.programId);
-      for (var inner_instruction of instruction.flattenedInnerInstructions) {
-        allProgramIds.push(inner_instruction.programId);
-      }
-    }
-  }
-  // Dedup programIds
-  let dedupedProgramIds = new Set(allProgramIds);
-  return Array.from(dedupedProgramIds);
+  const allProgramIds = instructionsPerTransaction
+    .filter(Boolean)
+    .flatMap((transactionInstructions) => transactionInstructions!)
+    .flatMap((ix) => [ix.topLevelInstruction.programId, ...ix.flattenedInnerInstructions.map((i) => i.programId)]);
+
+  return Array.from(new Set(allProgramIds));
 }

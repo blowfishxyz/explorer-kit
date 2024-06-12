@@ -1,7 +1,7 @@
 # Use official Node.js image as the base image
-FROM node:18
+FROM node:20
 
-# Set the working directory inside the container
+# Set the working directory inside the sharedDependencies
 WORKDIR /usr/src/app
 
 # Install pnpm

@@ -37,4 +37,4 @@ curl --location 'http://localhost:3000/decode/transactions' --header 'Content-Ty
 }'
 ```
 
-For example responses, see the [tests](./tests/server.test.ts).
+For example responses, see the [tests](src/server.test.ts).

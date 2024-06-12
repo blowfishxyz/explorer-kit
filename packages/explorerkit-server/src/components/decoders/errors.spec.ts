@@ -1,22 +1,35 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { loadAllIdls } from "../parsers-cache";
-import { decodeProgramError } from "./errors";
+import { decodeProgramError } from "@/facade/decoders/errors";
+import { loadAllIdls } from "@/facade/idls";
+
+vi.mock("@/core/shared-dependencies", (loadActual) => {
+  const deps = {
+    cache: new Map(),
+  };
+
+  return {
+    ...loadActual(),
+    initSharedDependencies: () => {},
+    getSharedDep: (name: keyof typeof deps) => deps[name],
+    getSharedDeps: () => deps,
+  };
+});
 
 describe("errors", () => {
+  let idls = new Map();
   const jupError = {
     errorCode: 0x1771,
     programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
   };
 
   beforeAll(async () => {
-    await loadAllIdls([jupError.programId]);
+    idls = await loadAllIdls([jupError.programId]);
   });
 
   describe("decodeProgramError", () => {
-    it("should return the decoded error", () => {
-      const result = decodeProgramError(jupError);
-
+    it("should return the decoded error", async () => {
+      const result = decodeProgramError(idls, jupError);
       expect(result).toEqual({
         decodedData: "Slippage tolerance exceeded",
         errorCode: 6001,
@@ -26,7 +39,7 @@ describe("errors", () => {
     });
 
     it("should return error for an unknown programId", () => {
-      const result = decodeProgramError({
+      const result = decodeProgramError(idls, {
         errorCode: 0x1771,
         programId: "UnknownProgramId",
       });

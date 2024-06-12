@@ -1,7 +1,20 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { app } from "../src/server";
+import { app } from "@/server";
+
+vi.mock("@/core/shared-dependencies", (loadActual) => {
+  const deps = {
+    cache: new Map(),
+  };
+
+  return {
+    ...loadActual(),
+    initSharedDependencies: () => {},
+    getSharedDep: (name: keyof typeof deps) => deps[name],
+    getSharedDeps: () => deps,
+  };
+});
 
 describe("Server API Tests", () => {
   it("Decodes accounts correctly", async () => {

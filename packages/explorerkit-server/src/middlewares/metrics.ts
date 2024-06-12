@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { Histogram } from "prom-client";
 
-import { register } from "../metrics";
+import { register } from "@/components/metrics";
 
 const httpRequestDurationMicroseconds = new Histogram({
   name: "http_request_duration_ms",

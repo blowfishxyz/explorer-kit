@@ -1,15 +1,15 @@
-import { ErrorParserInterface, ParserType, SolanaFMParser } from "@solanafm/explorer-kit";
+import { ErrorParserInterface, ParserType } from "@solanafm/explorer-kit";
 
-import { parsersCache } from "../parsers-cache";
-import { ProgramError } from "../types";
+import { IdlsMap } from "@/facade/idls";
+import { ProgramError } from "@/types";
 
-export function decodeProgramError(programError: ProgramError): ProgramError {
+export function decodeProgramError(idls: IdlsMap, programError: ProgramError): ProgramError {
   if (!programError.errorCode) {
     return programError;
   }
 
   const programId = programError.programId;
-  const parser = parsersCache.get<SolanaFMParser>(programId);
+  const parser = idls.get(programId);
 
   if (!parser) {
     return programError;

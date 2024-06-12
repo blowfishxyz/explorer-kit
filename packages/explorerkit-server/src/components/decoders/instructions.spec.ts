@@ -1,9 +1,24 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { loadAllIdls } from "../parsers-cache";
+import { loadAllIdls } from "@/facade/idls";
+
 import { decodeInstruction } from "./instructions";
 
+vi.mock("@/core/shared-dependencies", (loadActual) => {
+  const deps = {
+    cache: new Map(),
+  };
+
+  return {
+    ...loadActual(),
+    initSharedDependencies: () => {},
+    getSharedDep: (name: keyof typeof deps) => deps[name],
+    getSharedDeps: () => deps,
+  };
+});
+
 describe("instructions", () => {
+  let idls = new Map();
   const instruction = {
     accountKeys: [],
     encodedData: "3ta97iYzVb3u",
@@ -11,12 +26,12 @@ describe("instructions", () => {
   };
 
   beforeAll(async () => {
-    await loadAllIdls([instruction.programId]);
+    idls = await loadAllIdls([instruction.programId]);
   });
 
   describe("decodeInstruction", () => {
     it("should return the decoded instruction", async () => {
-      const result = await decodeInstruction({
+      const result = await decodeInstruction(idls, {
         accountKeys: [],
         encodedData: "3ta97iYzVb3u",
         programId: "ComputeBudget111111111111111111111111111111",
@@ -35,7 +50,7 @@ describe("instructions", () => {
   });
 
   it("should return instruction for an unknown programId", async () => {
-    const result = await decodeInstruction({
+    const result = await decodeInstruction(idls, {
       accountKeys: [],
       encodedData: "3ta97iYzVb3u",
       programId: "UnknownProgramId",

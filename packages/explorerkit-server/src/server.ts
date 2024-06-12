@@ -1,16 +1,16 @@
-import { AccountParserInterface, ParserType, SolanaFMParser } from "@solanafm/explorer-kit";
+import { AccountParserInterface, ParserType } from "@solanafm/explorer-kit";
 import bodyParser from "body-parser";
 import express, { Express, Request, Response } from "express";
 import { collectDefaultMetrics } from "prom-client";
 import { z } from "zod";
 
-import { decodeProgramError } from "./decoders/errors";
-import { decodeInstruction, getProgramIds } from "./decoders/instructions";
-import { register } from "./metrics";
-import { responseDurationMiddleware } from "./middlewares/metrics";
-import { loadAllIdls, parsersCache } from "./parsers-cache";
-import { Account, DecodedAccount, TopLevelInstruction } from "./types";
-import { isValidBase58, isValidBase64 } from "./utils/validation";
+import { decodeProgramError } from "@/components/decoders/errors";
+import { decodeInstruction, getProgramIds } from "@/components/decoders/instructions";
+import { loadAllIdls } from "@/components/idls";
+import { register } from "@/components/metrics";
+import { responseDurationMiddleware } from "@/middlewares/metrics";
+import { Account, DecodedAccount, TopLevelInstruction } from "@/types";
+import { isValidBase58, isValidBase64 } from "@/utils/validation";
 
 interface DecodeAccountsRequestBody {
   accounts: Account[];
@@ -28,13 +28,6 @@ app.use(bodyParser.json({ limit: "50mb" }));
 // Endpoint to decode accounts data
 app.get("/healthz", async (_req: Request, res: Response) => {
   return res.status(200).json({ status: "OK" });
-});
-
-// Endpoint to decode accounts data
-app.get("/stats", async (_req: Request, res: Response) => {
-  return res.status(200).json({
-    parsersCacheStats: parsersCache.getStats(),
-  });
 });
 
 // Expose the metrics at the /metrics endpoint
@@ -65,18 +58,14 @@ app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, re
   }
 
   const { accounts } = data satisfies DecodeAccountsRequestBody;
-
-  let allProgramIds = [];
-  for (let account of accounts) {
-    allProgramIds.push(account.ownerProgram);
-  }
-  await loadAllIdls(allProgramIds);
+  const allProgramIds = accounts.map((account) => account.ownerProgram);
+  const idls = await loadAllIdls(allProgramIds);
 
   try {
-    let decodedAccounts: DecodedAccount[] = [];
-    for (let account of accounts) {
-      let parser = parsersCache.get(account.ownerProgram) as SolanaFMParser;
-      if (parser === null) {
+    const decodedAccounts: DecodedAccount[] = [];
+    for (const account of accounts) {
+      const parser = idls.get(account.ownerProgram);
+      if (!parser) {
         // Didn't find parser last time we checked
         decodedAccounts.push({ decodedData: null });
         continue;
@@ -123,8 +112,8 @@ app.post("/decode/errors", responseDurationMiddleware, async (req: Request, res:
     .map((err) => err?.programId)
     .map((v) => v!);
 
-  await loadAllIdls(programIdsWithFailure);
-  const decodedErrors = data.errors.map((error) => error && decodeProgramError(error));
+  const idls = await loadAllIdls(programIdsWithFailure);
+  const decodedErrors = data.errors.map((error) => error && decodeProgramError(idls, error));
 
   return res.status(200).json({ decodedErrors });
 });
@@ -162,24 +151,28 @@ app.post("/decode/instructions", responseDurationMiddleware, async (req: Request
 
   try {
     const { instructionsPerTransaction } = data satisfies DecodeTransactionsRequestBody;
+    const allProgramIds = getProgramIds(instructionsPerTransaction);
+    const idls = await loadAllIdls(allProgramIds);
 
-    let allProgramIds = getProgramIds(instructionsPerTransaction);
-    await loadAllIdls(allProgramIds);
+    const decodedTransactions: (TopLevelInstruction[] | null)[] = [];
 
-    let decodedTransactions: (TopLevelInstruction[] | null)[] = [];
-    for (var transactionInstructions of instructionsPerTransaction) {
-      if (transactionInstructions === null) {
+    for (const transactionInstructions of instructionsPerTransaction) {
+      if (!transactionInstructions) {
         decodedTransactions.push(null);
         continue;
       }
-      let decodedTransaction: TopLevelInstruction[] = [];
-      for (var instruction of transactionInstructions) {
+
+      const decodedTransaction: TopLevelInstruction[] = [];
+
+      for (const instruction of transactionInstructions) {
         // First decode top level ix, then all nested ixs
-        let decodedTopLevelInstruction = await decodeInstruction(instruction.topLevelInstruction);
-        let decodedInnerInstruction = [];
-        for (var inner_instruction of instruction.flattenedInnerInstructions) {
-          decodedInnerInstruction.push(await decodeInstruction(inner_instruction));
+        const decodedTopLevelInstruction = await decodeInstruction(idls, instruction.topLevelInstruction);
+        const decodedInnerInstruction = [];
+
+        for (const inner_instruction of instruction.flattenedInnerInstructions) {
+          decodedInnerInstruction.push(await decodeInstruction(idls, inner_instruction));
         }
+
         decodedTransaction.push({
           topLevelInstruction: decodedTopLevelInstruction,
           flattenedInnerInstructions: decodedInnerInstruction,
