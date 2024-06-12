@@ -869,4 +869,49 @@ describe("Server API Tests", () => {
       ],
     });
   });
+
+  it("Decodes error messages", async () => {
+    const res = await request(app)
+      .post("/decode/errors")
+      .send({
+        errors: [
+          {
+            programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+            errorCode: "0x1771",
+
+          },
+          null,
+          {
+            programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+            errorCode: 0x1772,
+          },
+          {
+            programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+            errorCode: "0x23",
+          }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      decodedErrors: [
+        {
+          decodedData: "Slippage tolerance exceeded",
+          errorCode: 6001,
+          name: "SlippageToleranceExceeded",
+          programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+        },
+        null,
+        {
+          decodedData: "Invalid calculation",
+          errorCode: 6002,
+          name: "InvalidCalculation",
+          programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+        },
+        {
+          errorCode: 35,
+          programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+        },
+      ],
+    });
+  });
 });
