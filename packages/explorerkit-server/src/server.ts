@@ -9,7 +9,7 @@ import { decodeInstruction, getProgramIds } from "@/components/decoders/instruct
 import { loadAllIdls } from "@/components/idls";
 import { register } from "@/components/metrics";
 import { responseDurationMiddleware } from "@/middlewares/metrics";
-import { Account, DecodedAccount, TopLevelInstruction } from "@/types";
+import { Account, DecodedAccount, ProgramError, TopLevelInstruction } from "@/types";
 import { isValidBase58, isValidBase64 } from "@/utils/validation";
 
 interface DecodeAccountsRequestBody {
@@ -18,6 +18,10 @@ interface DecodeAccountsRequestBody {
 
 interface DecodeTransactionsRequestBody {
   instructionsPerTransaction: (TopLevelInstruction[] | null)[];
+}
+
+interface DecodedErrorsResponse {
+  decodedErrors: (ProgramError | null)[];
 }
 
 collectDefaultMetrics({ register });
@@ -111,8 +115,9 @@ app.post("/decode/errors", responseDurationMiddleware, async (req: Request, res:
 
   const idls = await loadAllIdls(programIdsWithFailure);
   const decodedErrors = data.errors.map((error) => error && decodeProgramError(idls, error));
+  const response: DecodedErrorsResponse = { decodedErrors };
 
-  return res.status(200).json({ decodedErrors });
+  return res.status(200).json(response);
 });
 
 const decodeInstructionsSchema = z.object({
