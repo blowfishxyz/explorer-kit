@@ -10,7 +10,7 @@ const IDL_CACHE_TTL = 3600; // one hour
 export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   const cache = getSharedDep("cache");
   const cachedIdls = await Promise.allSettled(programIds.map((id) => cache.get(id)));
-  const idls = new Map<string, SolanaFMParser | null>();
+  const idls: IdlsMap = new Map();
 
   const programIdsWithMissingIdls = cachedIdls
     .map((res, i) => {
