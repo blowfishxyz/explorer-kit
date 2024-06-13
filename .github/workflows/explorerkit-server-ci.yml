@@ -5,6 +5,9 @@ on:
     paths:
       - "packages/explorerkit-server/**"
 
+env:
+  REDIS_URL: redis://localhost:6379
+
 jobs:
   run-test-cases:
     runs-on: ubuntu-latest

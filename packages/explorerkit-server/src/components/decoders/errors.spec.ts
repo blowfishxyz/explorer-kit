@@ -31,7 +31,7 @@ describe("errors", () => {
     it("should return the decoded error", async () => {
       const result = decodeProgramError(idls, jupError);
       expect(result).toEqual({
-        decodedData: "Slippage tolerance exceeded",
+        decodedMessage: "Slippage tolerance exceeded",
         errorCode: 6001,
         name: "SlippageToleranceExceeded",
         programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
