@@ -14,7 +14,7 @@ export interface Instruction {
 export interface ProgramError {
   programId: string;
   errorCode?: number | null;
-  decodedData?: any;
+  decodedMessage?: string;
   name?: string | null;
 }
 
