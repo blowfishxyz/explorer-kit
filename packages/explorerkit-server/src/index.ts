@@ -1,15 +1,13 @@
+import { config } from "@/core/config";
 import { initSharedDependencies } from "@/core/shared-dependencies";
 import { app } from "@/server";
 
-// Start the server
-const PORT = process.env["PORT"] ?? 3000;
-
 async function main() {
   await initSharedDependencies();
-  app.listen(PORT);
+  app.listen(config.PORT);
 
   // eslint-disable-next-line no-console
-  console.log(`Server started on port ${PORT}`);
+  console.log(`Server started on port ${config.PORT}`);
 }
 
 void main();
