@@ -1,7 +1,20 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { app } from "../src/server";
+import { app } from "@/server";
+
+vi.mock("@/core/shared-dependencies", (loadActual) => {
+  const deps = {
+    cache: new Map(),
+  };
+
+  return {
+    ...loadActual(),
+    initSharedDependencies: () => {},
+    getSharedDep: (name: keyof typeof deps) => deps[name],
+    getSharedDeps: () => deps,
+  };
+});
 
 describe("Server API Tests", () => {
   it("Decodes accounts correctly", async () => {
@@ -866,6 +879,51 @@ describe("Server API Tests", () => {
             ],
           },
         ],
+      ],
+    });
+  });
+
+  it("Decodes error messages", async () => {
+    const res = await request(app)
+      .post("/decode/errors")
+      .send({
+        errors: [
+          {
+            programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+            errorCode: "0x1771",
+          },
+          null,
+          {
+            programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+            errorCode: 0x1772,
+          },
+          {
+            programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+            errorCode: "0x23",
+          },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      decodedErrors: [
+        {
+          decodedMessage: "Slippage tolerance exceeded",
+          errorCode: 6001,
+          kind: "SlippageToleranceExceeded",
+          programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+        },
+        null,
+        {
+          decodedMessage: "Invalid calculation",
+          errorCode: 6002,
+          kind: "InvalidCalculation",
+          programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+        },
+        {
+          errorCode: 35,
+          programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+        },
       ],
     });
   });

@@ -1,5 +1,13 @@
 # Explorer Kit Server
 
+Configuration is done via environment variables. For local development, you can copy `env.sample` into `.env` and fill in the values.
+
+```
+cp env.sample .env
+```
+
+Also make sure to run pnpm build in the root directory to build the shared dependencies.
+
 Build & watch
 
 ```
@@ -37,4 +45,4 @@ curl --location 'http://localhost:3000/decode/transactions' --header 'Content-Ty
 }'
 ```
 
-For example responses, see the [tests](./tests/server.test.ts).
+For example responses, see the [tests](src/server.test.ts).

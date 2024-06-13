@@ -2,6 +2,13 @@
   // We extend it from here!
   "extends": "tsconfig/base.json",
   // You can specify your own include/exclude
-  "include": ["src/**/*", "test/**/*"], 
-  "exclude": ["**/node_modules", "**/*.js", "**/build/**/*", "**/dist/**/*"]
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["**/node_modules", "**/*.js", "**/build/**/*", "**/dist/**/*"],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "paths": {
+      "@/*": ["src/*"],
+    }
+  }
 }
