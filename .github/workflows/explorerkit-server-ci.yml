@@ -1,0 +1,33 @@
+name: ExplorerKit Server CI
+
+on:
+  pull_request:
+    paths:
+      - "packages/explorerkit-server/**"
+
+jobs:
+  run-test-cases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup pnpm package manager
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.6.10
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: "pnpm"
+      - name: Install Node Modules
+        run: pnpm install
+      - name: Build workspace
+        run: pnpm build
+      - name: Run ExplorerKit Server Lint
+        run: pnpm lint
+        working-directory: ./packages/explorerkit-server
+      - name: Run ExplorerKit Server Tests
+        run: pnpm test
+        working-directory: ./packages/explorerkit-server
