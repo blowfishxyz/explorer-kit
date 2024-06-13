@@ -1,6 +1,6 @@
 # Explorer Kit Server
 
-Configuration is done via environment variables. For local development, you can create `env.sample` into `.env` and fill in the values.
+Configuration is done via environment variables. For local development, you can copy `env.sample` into `.env` and fill in the values.
 
 ```
 cp env.sample .env
