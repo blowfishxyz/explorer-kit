@@ -12,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: explorerkit
+    container_name: server
     restart: on-failure
     environment:
       - REDIS_URL=redis://redis:6379
