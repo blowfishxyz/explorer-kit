@@ -166,8 +166,8 @@ app.post("/decode/instructions", responseDurationMiddleware, async (req: Request
         const decodedTopLevelInstruction = await decodeInstruction(idls, instruction.topLevelInstruction);
         const decodedInnerInstruction = [];
 
-        for (const inner_instruction of instruction.flattenedInnerInstructions) {
-          decodedInnerInstruction.push(await decodeInstruction(idls, inner_instruction));
+        for (const innerInstruction of instruction.flattenedInnerInstructions) {
+          decodedInnerInstruction.push(await decodeInstruction(idls, innerInstruction));
         }
 
         decodedTransaction.push({
