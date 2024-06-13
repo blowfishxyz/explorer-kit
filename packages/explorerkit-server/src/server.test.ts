@@ -908,14 +908,14 @@ describe("Server API Tests", () => {
     expect(res.body).toMatchObject({
       decodedErrors: [
         {
-          decodedData: "Slippage tolerance exceeded",
+          decodedMessage: "Slippage tolerance exceeded",
           errorCode: 6001,
           name: "SlippageToleranceExceeded",
           programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
         },
         null,
         {
-          decodedData: "Invalid calculation",
+          decodedMessage: "Invalid calculation",
           errorCode: 6002,
           name: "InvalidCalculation",
           programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
