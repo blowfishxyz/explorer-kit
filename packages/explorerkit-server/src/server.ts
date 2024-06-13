@@ -107,10 +107,7 @@ app.post("/decode/errors", responseDurationMiddleware, async (req: Request, res:
     return res.status(400).json({ error: "Invalid request body", errors: error.errors });
   }
 
-  const programIdsWithFailure = data.errors
-    .filter((err) => err?.errorCode)
-    .map((err) => err?.programId)
-    .map((v) => v!);
+  const programIdsWithFailure = data.errors.filter((err) => err?.errorCode).map((err) => err?.programId) as string[];
 
   const idls = await loadAllIdls(programIdsWithFailure);
   const decodedErrors = data.errors.map((error) => error && decodeProgramError(idls, error));
