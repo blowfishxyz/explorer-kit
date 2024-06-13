@@ -13,29 +13,19 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   const cachedIdls = await Promise.allSettled(programIds.map((id) => cache.get(id)));
 
   await Promise.allSettled(
-    cachedIdls
-      .map((res, i) => {
-        const programId = programIds[i]!;
+    cachedIdls.map(async (res, i) => {
+      const programId = programIds[i]!;
 
-        if (res.status === "fulfilled" && res.value) {
-          const idl = deserializeIdl(res.value);
-
-          idls.set(programId, idl && new SolanaFMParser(idl, programId));
-
-          return;
-        }
-
-        return programId;
-      })
-      .map(async (programId) => {
-        if (!programId) {
-          return;
-        }
-
-        const idl = await getProgramIdl(programId);
-        void cache.set(programId, serializeIdl(idl), { EX: IDL_CACHE_TTL });
+      if (res.status === "fulfilled" && res.value) {
+        const idl = deserializeIdl(res.value);
         idls.set(programId, idl && new SolanaFMParser(idl, programId));
-      })
+        return;
+      }
+
+      const idl = await getProgramIdl(programId);
+      void cache.set(programId, serializeIdl(idl), { EX: IDL_CACHE_TTL });
+      idls.set(programId, idl && new SolanaFMParser(idl, programId));
+    })
   );
 
   return idls;

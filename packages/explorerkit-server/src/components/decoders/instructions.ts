@@ -81,8 +81,7 @@ function postProcessDecodedInstruction(decodedInstructionData?: any, decodedInst
 
 export function getProgramIds(instructionsPerTransaction: (TopLevelInstruction[] | null)[]): string[] {
   const allProgramIds = instructionsPerTransaction
-    .filter(Boolean)
-    .flatMap((transactionInstructions) => transactionInstructions!)
+    .flatMap((transactionInstructions) => transactionInstructions || [])
     .flatMap((ix) => [ix.topLevelInstruction.programId, ...ix.flattenedInnerInstructions.map((i) => i.programId)]);
 
   return Array.from(new Set(allProgramIds));
