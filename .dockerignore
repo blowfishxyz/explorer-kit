@@ -5,3 +5,4 @@ yarn-error.log
 ./packages/explorerkit-idls/node_modules
 ./packages/eslint-config-explorerkit/node_modules
 node_modules
+.env
