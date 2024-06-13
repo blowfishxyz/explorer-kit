@@ -910,14 +910,14 @@ describe("Server API Tests", () => {
         {
           decodedMessage: "Slippage tolerance exceeded",
           errorCode: 6001,
-          name: "SlippageToleranceExceeded",
+          kind: "SlippageToleranceExceeded",
           programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
         },
         null,
         {
           decodedMessage: "Invalid calculation",
           errorCode: 6002,
-          name: "InvalidCalculation",
+          kind: "InvalidCalculation",
           programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
         },
         {

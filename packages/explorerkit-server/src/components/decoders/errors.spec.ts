@@ -33,7 +33,7 @@ describe("errors", () => {
       expect(result).toEqual({
         decodedMessage: "Slippage tolerance exceeded",
         errorCode: 6001,
-        name: "SlippageToleranceExceeded",
+        kind: "SlippageToleranceExceeded",
         programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
       });
     });

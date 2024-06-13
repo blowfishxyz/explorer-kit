@@ -15,7 +15,7 @@ export interface ProgramError {
   programId: string;
   errorCode?: number | null;
   decodedMessage?: string;
-  name?: string | null;
+  kind?: string | null;
 }
 
 export interface Account {

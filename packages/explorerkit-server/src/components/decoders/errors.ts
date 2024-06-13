@@ -26,6 +26,6 @@ export function decodeProgramError(idls: IdlsMap, programError: ProgramError): P
   return {
     ...programError,
     decodedMessage: parsedError.data,
-    name: parsedError.name,
+    kind: parsedError.name,
   };
 }
