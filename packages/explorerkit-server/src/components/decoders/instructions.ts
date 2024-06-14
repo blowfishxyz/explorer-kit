@@ -1,4 +1,4 @@
-import { InstructionParserInterface, ParserType } from "@solanafm/explorer-kit";
+import { ParserType } from "@solanafm/explorer-kit";
 import { Buffer } from "buffer";
 
 import { IdlsMap } from "@/components/idls";
@@ -18,7 +18,11 @@ export async function decodeInstruction(idls: IdlsMap, instruction: Instruction)
   if (parser == null) {
     return parsedInstruction; // Short-circuit without decodedData since IDL is missing
   }
-  let instructionParser = parser.createParser(ParserType.INSTRUCTION) as InstructionParserInterface;
+  let instructionParser = parser.createParser(ParserType.INSTRUCTION);
+
+  if (!instructionParser || !("parseInstructions" in instructionParser)) {
+    return parsedInstruction; // Short-circuit without decodedData parser can't be created
+  }
 
   // Parse the transaction
   const decodedInstruction = instructionParser.parseInstructions(instruction.encodedData, instruction.accountKeys);

@@ -1,4 +1,4 @@
-import { ErrorParserInterface, ParserType } from "@solanafm/explorer-kit";
+import { ParserType } from "@solanafm/explorer-kit";
 
 import { IdlsMap } from "@/components/idls";
 import { ProgramError } from "@/types";
@@ -16,7 +16,12 @@ export function decodeProgramError(idls: IdlsMap, programError: ProgramError): P
   }
 
   const hexErrorCode = `0x${programError.errorCode.toString(16)}`;
-  const errorParser = parser.createParser(ParserType.ERROR) as ErrorParserInterface;
+  const errorParser = parser.createParser(ParserType.ERROR);
+
+  if (!errorParser || !("parseError" in errorParser)) {
+    return programError;
+  }
+
   const parsedError = errorParser.parseError(hexErrorCode);
 
   if (!parsedError) {

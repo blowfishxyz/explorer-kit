@@ -87,7 +87,7 @@ app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, re
 
     return res.status(200).json({ decodedAccounts });
   } catch (e: any) {
-    console.error(e);
+    console.error("failed to decode accounts", e);
     return res.status(500).json({ error: e.message });
   }
 });
@@ -114,10 +114,16 @@ app.post("/decode/errors", responseDurationMiddleware, async (req: Request, res:
   const programIdsWithFailure = data.errors.filter((err) => err?.errorCode).map((err) => err?.programId) as string[];
 
   const idls = await loadAllIdls(programIdsWithFailure);
-  const decodedErrors = data.errors.map((error) => error && decodeProgramError(idls, error));
-  const response: DecodedErrorsResponse = { decodedErrors };
 
-  return res.status(200).json(response);
+  try {
+    const decodedErrors = data.errors.map((error) => error && decodeProgramError(idls, error));
+    const response: DecodedErrorsResponse = { decodedErrors };
+
+    return res.status(200).json(response);
+  } catch (e: any) {
+    console.error("failed to decode errors", e);
+    return res.status(500).json({ error: e.message });
+  }
 });
 
 const decodeInstructionsSchema = z.object({
@@ -185,7 +191,7 @@ app.post("/decode/instructions", responseDurationMiddleware, async (req: Request
 
     return res.status(200).json({ decodedTransactions });
   } catch (e: any) {
-    console.error(e);
+    console.error("failed to decode instructions", e);
     return res.status(500).json({ error: e.message });
   }
 });
