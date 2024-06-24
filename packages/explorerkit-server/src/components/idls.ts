@@ -15,7 +15,7 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   }
 
   const cache = getSharedDep("cache");
-  const cachedIdls = await cache.multiGet(programIds);
+  const cachedIdls = await cache.multiGet(programIds, IDL_CACHE_TTL);
 
   await Promise.allSettled(
     cachedIdls.map(async (res, i) => {
@@ -28,7 +28,7 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
       }
 
       const idl = await getProgramIdl(programId);
-      void cache.set(programId, serializeIdl(idl), { EX: IDL_CACHE_TTL });
+      void cache.set(programId, serializeIdl(idl), IDL_CACHE_TTL);
       idls.set(programId, idl && new SolanaFMParser(idl, programId));
     })
   );

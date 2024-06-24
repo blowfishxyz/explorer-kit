@@ -6,7 +6,7 @@ import { register } from "@/components/metrics";
 import { config } from "@/core/config";
 import { onTeardown } from "@/utils/teardown";
 
-const LRU_CACHE_MAX_ITEMS_COUNT = 100;
+const LRU_CACHE_MAX_ITEMS_COUNT = 1000;
 
 type CacheMetricGauges = {
   redisHits: Gauge<string>;
@@ -21,7 +21,7 @@ class MultiCache {
     private guages: CacheMetricGauges
   ) {}
 
-  async multiGet(keys: string[]): Promise<(string | null)[]> {
+  async multiGet(keys: string[], ttlInS: number = 0): Promise<(string | null)[]> {
     const items: Record<string, string | null> = {};
     const missingLruKeys: string[] = [];
 
@@ -44,7 +44,9 @@ class MultiCache {
         items[key] = maybeIdl;
         if (maybeIdl) {
           this.guages.redisHits.inc();
-          this.lruCache.set(key, maybeIdl);
+          this.lruCache.set(key, maybeIdl, {
+            ttl: ttlInS * 1000,
+          });
         } else {
           this.guages.misses.inc();
         }
@@ -54,9 +56,14 @@ class MultiCache {
     return keys.map((key) => items[key] ?? null);
   }
 
-  async set(key: string, value: string, options: { EX: number }): Promise<void> {
-    this.lruCache.set(key, value);
-    await this.redis.set(key, value, options);
+  async set(key: string, value: string, ttlInS: number = 0): Promise<void> {
+    this.lruCache.set(key, value, {
+      ttl: ttlInS * 1000,
+    });
+
+    await this.redis.set(key, value, {
+      EX: ttlInS,
+    });
   }
 
   async teardown() {
@@ -72,6 +79,7 @@ export async function createCache(): Promise<MultiCache> {
 
   const lruCache = new LRUCache<string, string>({
     max: LRU_CACHE_MAX_ITEMS_COUNT,
+    updateAgeOnGet: true,
   });
 
   const multiCache = new MultiCache(redisClient as RedisClientType, lruCache, {
