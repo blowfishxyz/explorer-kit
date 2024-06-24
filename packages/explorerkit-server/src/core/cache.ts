@@ -9,7 +9,8 @@ import { onTeardown } from "@/utils/teardown";
 const LRU_CACHE_MAX_ITEMS_COUNT = 100;
 
 type CacheMetricGauges = {
-  hits: Gauge<string>;
+  redisHits: Gauge<string>;
+  lruHits: Gauge<string>;
   misses: Gauge<string>;
 };
 
@@ -20,18 +21,6 @@ class MultiCache {
     private guages: CacheMetricGauges
   ) {}
 
-  async get(key: string): Promise<string | null> {
-    const item = this.lruCache.get(key) ?? (await this.redis.get(key));
-
-    if (item) {
-      this.guages.hits.inc();
-    } else {
-      this.guages.misses.inc();
-    }
-
-    return item;
-  }
-
   async multiGet(keys: string[]): Promise<(string | null)[]> {
     const items: Record<string, string | null> = {};
     const missingLruKeys: string[] = [];
@@ -41,6 +30,7 @@ class MultiCache {
 
       if (value) {
         items[key] = value;
+        this.guages.lruHits.inc();
       } else {
         missingLruKeys.push(key);
       }
@@ -53,22 +43,15 @@ class MultiCache {
         const key = missingLruKeys[i]!;
         items[key] = maybeIdl;
         if (maybeIdl) {
+          this.guages.redisHits.inc();
           this.lruCache.set(key, maybeIdl);
+        } else {
+          this.guages.misses.inc();
         }
       }
     }
 
-    return keys.map((key) => {
-      const item = items[key];
-
-      if (item) {
-        this.guages.hits.inc();
-      } else {
-        this.guages.misses.inc();
-      }
-
-      return item ?? null;
-    });
+    return keys.map((key) => items[key] ?? null);
   }
 
   async set(key: string, value: string, options: { EX: number }): Promise<void> {
@@ -92,9 +75,14 @@ export async function createCache(): Promise<MultiCache> {
   });
 
   const multiCache = new MultiCache(redisClient as RedisClientType, lruCache, {
-    hits: new Gauge({
-      name: "cache_hits_total",
-      help: "Total number of cache hits",
+    redisHits: new Gauge({
+      name: "redis_cache_hits_total",
+      help: "Total number of redis cache hits",
+      registers: [register],
+    }),
+    lruHits: new Gauge({
+      name: "lru_cache_hits_total",
+      help: "Total number of lru-cache hits",
       registers: [register],
     }),
     misses: new Gauge({
