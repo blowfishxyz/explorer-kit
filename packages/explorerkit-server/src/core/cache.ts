@@ -6,7 +6,7 @@ import { register } from "@/components/metrics";
 import { config } from "@/core/config";
 import { onTeardown } from "@/utils/teardown";
 
-const LRU_CACHE_MAX_ITEMS_COUNT = 1000;
+const LRU_CACHE_MAX_ITEMS_COUNT = 100;
 
 type CacheMetricGauges = {
   redisHits: Gauge<string>;
