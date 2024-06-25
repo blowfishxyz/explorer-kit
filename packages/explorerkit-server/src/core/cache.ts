@@ -9,8 +9,7 @@ import { onTeardown } from "@/utils/teardown";
 const LRU_CACHE_MAX_ITEMS_COUNT = 100;
 
 type CacheMetricGauges = {
-  redisHits: Gauge<string>;
-  lruHits: Gauge<string>;
+  hits: Gauge<string>;
   misses: Gauge<string>;
 };
 
@@ -30,7 +29,9 @@ class MultiCache {
 
       if (value) {
         items[key] = value;
-        this.guages.lruHits.inc();
+        this.guages.hits.inc({
+          cache: "lru",
+        });
       } else {
         missingLruKeys.push(key);
       }
@@ -43,7 +44,9 @@ class MultiCache {
         const key = missingLruKeys[i]!;
         items[key] = maybeIdl;
         if (maybeIdl) {
-          this.guages.redisHits.inc();
+          this.guages.hits.inc({
+            cache: "redis",
+          });
           this.lruCache.set(key, maybeIdl, {
             ttl: ttlInS * 1000,
           });
@@ -83,15 +86,11 @@ export async function createCache(): Promise<MultiCache> {
   });
 
   const multiCache = new MultiCache(redisClient as RedisClientType, lruCache, {
-    redisHits: new Gauge({
-      name: "redis_cache_hits_total",
-      help: "Total number of redis cache hits",
-      registers: [register],
-    }),
-    lruHits: new Gauge({
-      name: "lru_cache_hits_total",
+    hits: new Gauge({
+      name: "cache_hits_total",
       help: "Total number of lru-cache hits",
       registers: [register],
+      labelNames: ["cache"],
     }),
     misses: new Gauge({
       name: "cache_misses_total",
