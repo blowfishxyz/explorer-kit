@@ -15,10 +15,16 @@ export function decodeInstruction(idls: IdlsMap, instruction: Instruction): Inst
   };
 
   let parser = idls.get(programId);
-  if (parser == null) {
+  if (!parser) {
     return parsedInstruction; // Short-circuit without decodedData since IDL is missing
   }
-  let instructionParser = parser.createParser(ParserType.INSTRUCTION);
+
+  let instructionParser;
+  try {
+    instructionParser = parser.createParser(ParserType.INSTRUCTION);
+  } catch {
+    return parsedInstruction; // Short-circuit without instructionParser we can't decode the instruction
+  }
 
   if (!instructionParser || !checkIfInstructionParser(instructionParser)) {
     return parsedInstruction; // Short-circuit without decodedData parser can't be created
