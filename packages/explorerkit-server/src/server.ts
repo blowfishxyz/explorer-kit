@@ -1,4 +1,4 @@
-import { AccountParserInterface, ParserType } from "@solanafm/explorer-kit";
+import { checkIfAccountParser, ParserType } from "@solanafm/explorer-kit";
 import bodyParser from "body-parser";
 import express, { Express, Request, Response } from "express";
 import { collectDefaultMetrics } from "prom-client";
@@ -76,7 +76,13 @@ app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, re
       }
 
       // Parse the account
-      let accountParser = parser.createParser(ParserType.ACCOUNT) as AccountParserInterface;
+      const accountParser = parser.createParser(ParserType.ACCOUNT);
+
+      if (!accountParser || !checkIfAccountParser(accountParser)) {
+        decodedAccounts.push({ decodedData: null });
+        continue;
+      }
+
       const decodedData = accountParser.parseAccount(account.data);
       decodedAccounts.push({
         decodedData: decodedData
@@ -96,7 +102,9 @@ const decodeErrorsSchema = z.object({
   errors: z.array(
     z
       .object({
-        programId: z.string(),
+        programId: z.string().refine(isValidBase58, {
+          message: "error.programId is not a valid base58 string",
+        }),
         errorCode: z.coerce.number().nullable().optional(),
       })
       .nullable()
@@ -132,13 +140,17 @@ const decodeInstructionsSchema = z.object({
       .array(
         z.object({
           topLevelInstruction: z.object({
-            programId: z.string(),
+            programId: z.string().refine(isValidBase58, {
+              message: "topLevelInstruction.programId is not a valid base58 string",
+            }),
             encodedData: z.string(),
             accountKeys: z.array(z.string()),
           }),
           flattenedInnerInstructions: z.array(
             z.object({
-              programId: z.string(),
+              programId: z.string().refine(isValidBase58, {
+                message: "flattenedInnerInstructions.programId is not a valid base58 string",
+              }),
               encodedData: z.string(),
               accountKeys: z.array(z.string()),
             })
@@ -174,11 +186,11 @@ app.post("/decode/instructions", responseDurationMiddleware, async (req: Request
 
       for (const instruction of transactionInstructions) {
         // First decode top level ix, then all nested ixs
-        const decodedTopLevelInstruction = await decodeInstruction(idls, instruction.topLevelInstruction);
+        const decodedTopLevelInstruction = decodeInstruction(idls, instruction.topLevelInstruction);
         const decodedInnerInstruction = [];
 
         for (const innerInstruction of instruction.flattenedInnerInstructions) {
-          decodedInnerInstruction.push(await decodeInstruction(idls, innerInstruction));
+          decodedInnerInstruction.push(decodeInstruction(idls, innerInstruction));
         }
 
         decodedTransaction.push({
@@ -191,7 +203,7 @@ app.post("/decode/instructions", responseDurationMiddleware, async (req: Request
 
     return res.status(200).json({ decodedTransactions });
   } catch (e: any) {
-    console.error("failed to decode instructions", e);
+    console.error("failed to decode instructions", e, JSON.stringify(data));
     return res.status(500).json({ error: e.message });
   }
 });

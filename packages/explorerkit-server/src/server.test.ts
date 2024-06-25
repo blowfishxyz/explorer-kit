@@ -4,8 +4,24 @@ import { describe, expect, it, vi } from "vitest";
 import { app } from "@/server";
 
 vi.mock("@/core/shared-dependencies", (loadActual) => {
+  class MultiCacheMock {
+    private data: Record<string, string> = {};
+
+    async get(key: string) {
+      return this.data[key] || null;
+    }
+
+    async multiGet(keys: string[]) {
+      return keys.map((key) => this.data[key] || null);
+    }
+
+    async set(key: string, value: string) {
+      this.data[key] = value;
+    }
+  }
+
   const deps = {
-    cache: new Map(),
+    cache: new MultiCacheMock(),
   };
 
   return {

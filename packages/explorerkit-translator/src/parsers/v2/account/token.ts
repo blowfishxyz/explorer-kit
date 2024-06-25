@@ -87,7 +87,6 @@ export const createShankTokenAccount: (idlItem: IdlItem) => AccountParserInterfa
 
       return null;
     } catch (error) {
-      console.error(error);
       return null;
     }
   };

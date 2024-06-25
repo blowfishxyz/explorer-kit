@@ -9,21 +9,26 @@ const IDL_CACHE_TTL = 3600; // one hour
 
 export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   const idls: IdlsMap = new Map();
+
+  if (programIds.length === 0) {
+    return idls;
+  }
+
   const cache = getSharedDep("cache");
-  const cachedIdls = await Promise.allSettled(programIds.map((id) => cache.get(id)));
+  const cachedIdls = await cache.multiGet(programIds, IDL_CACHE_TTL);
 
   await Promise.allSettled(
     cachedIdls.map(async (res, i) => {
       const programId = programIds[i]!;
 
-      if (res.status === "fulfilled" && res.value) {
-        const idl = deserializeIdl(res.value);
+      if (res) {
+        const idl = deserializeIdl(res);
         idls.set(programId, idl && new SolanaFMParser(idl, programId));
         return;
       }
 
       const idl = await getProgramIdl(programId);
-      void cache.set(programId, serializeIdl(idl), { EX: IDL_CACHE_TTL });
+      void cache.set(programId, serializeIdl(idl), IDL_CACHE_TTL);
       idls.set(programId, idl && new SolanaFMParser(idl, programId));
     })
   );

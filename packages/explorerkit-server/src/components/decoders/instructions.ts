@@ -1,10 +1,10 @@
-import { ParserType } from "@solanafm/explorer-kit";
+import { checkIfInstructionParser, ParserType } from "@solanafm/explorer-kit";
 import { Buffer } from "buffer";
 
 import { IdlsMap } from "@/components/idls";
 import { Instruction, TopLevelInstruction } from "@/types";
 
-export async function decodeInstruction(idls: IdlsMap, instruction: Instruction): Promise<Instruction> {
+export function decodeInstruction(idls: IdlsMap, instruction: Instruction): Instruction {
   const programId = instruction.programId.toString();
   let parsedInstruction = {
     programId: programId.toString(),
@@ -20,7 +20,7 @@ export async function decodeInstruction(idls: IdlsMap, instruction: Instruction)
   }
   let instructionParser = parser.createParser(ParserType.INSTRUCTION);
 
-  if (!instructionParser || !("parseInstructions" in instructionParser)) {
+  if (!instructionParser || !checkIfInstructionParser(instructionParser)) {
     return parsedInstruction; // Short-circuit without decodedData parser can't be created
   }
 
