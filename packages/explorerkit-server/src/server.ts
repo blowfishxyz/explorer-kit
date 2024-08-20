@@ -1,4 +1,5 @@
 import { checkIfAccountParser, ParserType } from "@solanafm/explorer-kit";
+import { ParserOutput } from "@solanafm/explorer-kit/src";
 import bodyParser from "body-parser";
 import express, { Express, Request, Response } from "express";
 import { collectDefaultMetrics } from "prom-client";
@@ -83,10 +84,17 @@ app.post("/decode/accounts", responseDurationMiddleware, async (req: Request, re
         continue;
       }
 
-      const decodedData = accountParser.parseAccount(account.data);
+      let decodedData: ParserOutput | undefined;
+      try {
+        decodedData = accountParser.parseAccount(account.data);
+      } catch {
+        // if we get an error here, this means that the program did not published latest IDL
+        continue;
+      }
+
       decodedAccounts.push({
         decodedData: decodedData
-          ? { owner: account.ownerProgram, name: decodedData?.name, data: decodedData?.data }
+          ? { owner: account.ownerProgram, name: decodedData.name, data: decodedData.data }
           : null,
       });
     }
