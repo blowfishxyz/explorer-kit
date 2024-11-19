@@ -27,7 +27,7 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
         return;
       }
 
-      const idl = await getProgramIdl(programId);
+      const idl = (await getProgramIdl(programId)) || getInMemoryProgramIdl(programId);
       void cache.set(programId, serializeIdl(idl), IDL_CACHE_TTL);
       idls.set(programId, idl && new SolanaFMParser(idl, programId));
     })
@@ -37,6 +37,21 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
 }
 
 type MaybeIdl = { type: "MISSING" } | { type: "IDL"; idl: IdlItem };
+
+const IN_MEMORY_PROGRAM_IDLS: Map<String, IdlItem> = new Map([
+  [
+    "6m2CDdhRgxpH4WjvdzxAYbGxwdGUz5MziiL5jek2kBma",
+    {
+      idl: require("./idls/okx_aggregator.json"),
+      programId: "6m2CDdhRgxpH4WjvdzxAYbGxwdGUz5MziiL5jek2kBma",
+      idlType: "anchor",
+    },
+  ],
+]);
+
+const getInMemoryProgramIdl = (programId: string): IdlItem | null => {
+  return IN_MEMORY_PROGRAM_IDLS.get(programId) || null;
+};
 
 const deserializeIdl = (idl: string): IdlItem | null => {
   try {
