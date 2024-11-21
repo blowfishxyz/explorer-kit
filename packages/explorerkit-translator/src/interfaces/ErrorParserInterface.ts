@@ -17,6 +17,7 @@ export interface ErrorParserInterface {
 
 export const createErrorParser = (idlItem: IdlItem) => {
   switch (idlItem.idlType) {
+    case "anchorV1":
     case "anchor":
       return createAnchorErrorParser(idlItem);
     case "shank":
