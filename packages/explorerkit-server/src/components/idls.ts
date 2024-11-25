@@ -60,7 +60,7 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
       idls.set(programId, cachedIdl && new SolanaFMParser(cachedIdl.idl, programId));
     }
 
-    if (cachedIdl.staleAt.getTime() < Date.now()) {
+    if (cachedIdl.expiresAt.getTime() < Date.now()) {
       addIdlToRefreshQueue(programId);
     }
   }
@@ -68,7 +68,7 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   return idls;
 }
 
-type MaybeIdl = { type: "MISSING"; staleAt: Date } | { type: "IDL"; idl: IdlItem; staleAt: Date };
+type MaybeIdl = { type: "MISSING"; expiresAt: Date } | { type: "IDL"; idl: IdlItem; expiresAt: Date };
 
 const IN_MEMORY_PROGRAM_IDLS: Map<String, IdlItem> = new Map([
   [
@@ -155,7 +155,7 @@ export function initIdlsRefreshBackgroundJob(idlRefreshIntervalMs: number) {
 const deserializeIdl = (idl: string): MaybeIdl | null => {
   try {
     const item = JSON.parse(idl) as MaybeIdl;
-    item.staleAt = new Date(item.staleAt || 0);
+    item.expiresAt = new Date(item.expiresAt || 0);
 
     return item;
   } catch (e) {
@@ -163,7 +163,7 @@ const deserializeIdl = (idl: string): MaybeIdl | null => {
   }
 };
 
-const serializeIdl = (idl: IdlItem | null, staleAt: Date): string => {
-  const maybeIdl: MaybeIdl = idl === null ? { type: "MISSING", staleAt } : { type: "IDL", idl, staleAt };
+const serializeIdl = (idl: IdlItem | null, expiresAt: Date): string => {
+  const maybeIdl: MaybeIdl = idl === null ? { type: "MISSING", expiresAt } : { type: "IDL", idl, expiresAt };
   return JSON.stringify(maybeIdl);
 };
