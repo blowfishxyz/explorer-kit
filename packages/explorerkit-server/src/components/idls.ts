@@ -1,6 +1,6 @@
 import { SolanaFMParser } from "@solanafm/explorer-kit";
 import { getMultipleProgramIdls, IdlItem } from "@solanafm/explorer-kit-idls";
-import { Gauge } from "prom-client";
+import { Gauge, Histogram } from "prom-client";
 
 import { register } from "@/components/metrics";
 import { getSharedDep } from "@/core/shared-dependencies";
@@ -130,6 +130,12 @@ export function initIdlsRefreshBackgroundJob(idlRefreshIntervalMs: number) {
     help: "Number of idls to refresh",
     registers: [register],
   });
+  const idlRefreshTime = new Histogram({
+    name: "idls_refresh_time",
+    help: "Time taken to refresh idls",
+    buckets: [0.1, 5, 15, 50, 100, 300, 500, 1000],
+    registers: [register],
+  });
 
   let isRefreshing = false;
 
@@ -139,13 +145,17 @@ export function initIdlsRefreshBackgroundJob(idlRefreshIntervalMs: number) {
     }
 
     queueSizeMetric.set(idlRefreshQueue.size);
+    isRefreshing = true;
+    const startTime = process.hrtime();
 
     try {
-      isRefreshing = true;
       await refreshIdlsInQueue();
     } catch (error) {
       console.error("Error refreshing idls", error);
     } finally {
+      const endTime = process.hrtime(startTime);
+      const durationMs = endTime[0] * 1e3 + endTime[1] * 1e-6;
+      idlRefreshTime.observe(durationMs);
       isRefreshing = false;
     }
   }, idlRefreshIntervalMs);
