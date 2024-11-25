@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { decodeInstruction } from "@/components/decoders/instructions";
-import { loadAllIdls } from "@/components/idls";
+import { addIdlToRefreshQueue, loadAllIdls, refreshIdlsInQueue } from "@/components/idls";
 
 vi.mock("@/core/shared-dependencies", (loadActual) => {
   class MultiCacheMock {
@@ -41,6 +41,8 @@ describe("instructions", () => {
   };
 
   beforeAll(async () => {
+    addIdlToRefreshQueue("ComputeBudget111111111111111111111111111111");
+    await refreshIdlsInQueue();
     idls = await loadAllIdls([instruction.programId]);
   });
 

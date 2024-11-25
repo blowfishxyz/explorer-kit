@@ -1,6 +1,7 @@
 import request from "supertest";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import { addIdlToRefreshQueue, refreshIdlsInQueue } from "@/components/idls";
 import { app } from "@/server";
 
 vi.mock("@/core/shared-dependencies", (loadActual) => {
@@ -33,6 +34,19 @@ vi.mock("@/core/shared-dependencies", (loadActual) => {
 });
 
 describe("Server API Tests", () => {
+  beforeAll(async () => {
+    [
+      "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      "ComputeBudget111111111111111111111111111111",
+      "11111111111111111111111111111111",
+      "2wT8Yq49kHgDzXuPxZSaeLaH1qbmGXtEyPy64bL7aD3c",
+      "gdrpGjVffourzkdDRrQmySw4aTHr8a3xmQzzxSwFD1a",
+    ].forEach(addIdlToRefreshQueue);
+    await refreshIdlsInQueue();
+  });
+
   it("Decodes accounts correctly", async () => {
     const res = await request(app)
       .post("/decode/accounts")
