@@ -20,9 +20,8 @@ const IDL_CACHE_TTL = 86400; // one day
  * Note: If a program IDL is available, but it not in the cache, this function will NOT return it
  * The IDL is going to be fetched in background during the next refresh cycle (10 seconds).
  *
- * @param programIds The program ids to load the idls for
- * @returns A map of program ids to idls
  * @param {string[]} programIds
+ * @returns {Promise<IdlsMap>} A map of program ids to idls
  */
 export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   const idls: IdlsMap = new Map();
