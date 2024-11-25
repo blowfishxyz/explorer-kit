@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { decodeProgramError } from "@/components/decoders/errors";
-import { loadAllIdls } from "@/components/idls";
+import { addIdlToRefreshQueue, loadAllIdls, refreshIdlsInQueue } from "@/components/idls";
 
 vi.mock("@/core/shared-dependencies", (loadActual) => {
   class MultiCacheMock {
@@ -40,6 +40,8 @@ describe("errors", () => {
   };
 
   beforeAll(async () => {
+    addIdlToRefreshQueue("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
+    await refreshIdlsInQueue();
     idls = await loadAllIdls([jupError.programId]);
   });
 
