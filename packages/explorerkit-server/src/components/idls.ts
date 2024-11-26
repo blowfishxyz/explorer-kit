@@ -1,5 +1,5 @@
 import { SolanaFMParser } from "@solanafm/explorer-kit";
-import { getMultipleProgramIdls, IdlItem } from "@solanafm/explorer-kit-idls";
+import { getMultipleProgramIdls, getProgramIdl, IdlItem } from "@solanafm/explorer-kit-idls";
 import { Gauge, Histogram } from "prom-client";
 
 import { register } from "@/components/metrics";
@@ -17,8 +17,7 @@ const IDL_CACHE_TTL = 86400; // one day
  * Idls are cached for 1 day and are stored with a stale time of 1 hour.
  * If the idl is stale, it will still be returned but will be refreshed in the background.
  *
- * Note: If a program IDL is available, but it not in the cache, this function will NOT return it
- * The IDL is going to be fetched in background during the next refresh cycle (10 seconds).
+ * Note: If a program IDL is missing in cache the function will try to fetch it in the main request.
  *
  * @param {string[]} programIds
  * @returns {Promise<IdlsMap>} A map of program ids to idls
@@ -40,29 +39,34 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
     return acc;
   }, new Map<string, MaybeIdl | null>());
 
-  for (const programId of programIds) {
-    const inMemoryIdl = getInMemoryProgramIdl(programId);
+  await Promise.allSettled(
+    programIds.map(async (programId) => {
+      const inMemoryIdl = getInMemoryProgramIdl(programId);
 
-    if (inMemoryIdl) {
-      idls.set(programId, inMemoryIdl && new SolanaFMParser(inMemoryIdl, programId));
-      continue;
-    }
+      if (inMemoryIdl) {
+        idls.set(programId, inMemoryIdl && new SolanaFMParser(inMemoryIdl, programId));
+        return;
+      }
 
-    const cachedIdl = cachedIdlByProgramId.get(programId);
+      const cachedIdl = cachedIdlByProgramId.get(programId);
 
-    if (!cachedIdl) {
-      addIdlToRefreshQueue(programId);
-      continue;
-    }
+      if (!cachedIdl) {
+        const idl = await getProgramIdl(programId);
+        const serializedIdl = serializeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
+        void cache.set(programId, serializedIdl, IDL_CACHE_TTL);
+        idls.set(programId, idl && new SolanaFMParser(idl, programId));
+        return;
+      }
 
-    if (cachedIdl.type === "IDL") {
-      idls.set(programId, cachedIdl && new SolanaFMParser(cachedIdl.idl, programId));
-    }
+      if (cachedIdl.type === "IDL") {
+        idls.set(programId, cachedIdl && new SolanaFMParser(cachedIdl.idl, programId));
+      }
 
-    if (cachedIdl.expiresAt.getTime() < Date.now()) {
-      addIdlToRefreshQueue(programId);
-    }
-  }
+      if (cachedIdl.expiresAt.getTime() < Date.now()) {
+        addIdlToRefreshQueue(programId);
+      }
+    })
+  );
 
   return idls;
 }
