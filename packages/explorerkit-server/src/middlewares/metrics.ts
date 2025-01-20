@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from "express";
+import { FastifyReply, FastifyRequest } from "fastify";
 import { Histogram } from "prom-client";
 
 import { register } from "@/components/metrics";
@@ -11,16 +11,13 @@ const httpRequestDurationMicroseconds = new Histogram({
   registers: [register],
 });
 
-export const responseDurationMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+export const responseDurationMiddleware = async (req: FastifyRequest, res: FastifyReply) => {
   const start = process.hrtime();
 
-  res.on("finish", () => {
-    // Event listener for when the response has been sent
+  res.raw.on("finish", () => {
     const diff = process.hrtime(start);
     const responseTimeInMs = diff[0] * 1e3 + diff[1] * 1e-6; // Convert to milliseconds
 
-    httpRequestDurationMicroseconds.labels(req.method, req.path, res.statusCode.toString()).observe(responseTimeInMs);
+    httpRequestDurationMicroseconds.labels(req.method, req.url, res.statusCode.toString()).observe(responseTimeInMs);
   });
-
-  next();
 };

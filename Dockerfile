@@ -19,6 +19,7 @@ WORKDIR /usr/src/app/packages/explorerkit-server
 # Install dependencies
 RUN pnpm install
 
+ENV NODE_ENV="production"
 # Compile TypeScript to JavaScript
 RUN pnpm build
 
