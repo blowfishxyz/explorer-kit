@@ -11,7 +11,7 @@ const httpRequestDurationMicroseconds = new Histogram({
   registers: [register],
 });
 
-export const responseDurationMiddleware = async (req: FastifyRequest, res: FastifyReply) => {
+export const responseDurationMiddleware = (req: FastifyRequest, res: FastifyReply, done: () => void) => {
   const start = process.hrtime();
 
   res.raw.on("finish", () => {
@@ -20,4 +20,6 @@ export const responseDurationMiddleware = async (req: FastifyRequest, res: Fasti
 
     httpRequestDurationMicroseconds.labels(req.method, req.url, res.statusCode.toString()).observe(responseTimeInMs);
   });
+
+  done();
 };
