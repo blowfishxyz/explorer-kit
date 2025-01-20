@@ -1,7 +1,5 @@
-import request from "supertest";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { addIdlToRefreshQueue, refreshIdlsInQueue } from "@/components/idls";
 import { app } from "@/server";
 
 vi.mock("@/core/shared-dependencies", (loadActual) => {
@@ -35,19 +33,21 @@ vi.mock("@/core/shared-dependencies", (loadActual) => {
 
 describe("Server API Tests", () => {
   it("Decodes accounts correctly", async () => {
-    const res = await request(app)
-      .post("/decode/accounts")
-      .send({
+    const res = await app.inject({
+      method: "POST",
+      url: "/decode/accounts",
+      payload: {
         accounts: [
           {
             ownerProgram: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
             data: "/NFB6YMsrxCtkXSVyg8nG1spPNRwJ+pzcAftQOs5oL0mA+FEPRpnATHIUtp5LuY9RJEScraeiSf6ghxvpIcl2eGPjQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           },
         ],
-      });
+      },
+    });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toMatchObject({
       decodedAccounts: [
         {
           decodedData: {
@@ -72,9 +72,10 @@ describe("Server API Tests", () => {
   });
 
   it("Decodes instructions correctly", async () => {
-    const res = await request(app)
-      .post("/decode/instructions")
-      .send({
+    const res = await app.inject({
+      method: "POST",
+      url: "/decode/instructions",
+      payload: {
         instructionsPerTransaction: [
           [
             {
@@ -337,10 +338,11 @@ describe("Server API Tests", () => {
             },
           ],
         ],
-      });
+      },
+    });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toMatchObject({
       decodedTransactions: [
         [
           {
@@ -742,9 +744,10 @@ describe("Server API Tests", () => {
   });
 
   it("Decodes instructions and replaces u8 arrays with the base64 encoded version", async () => {
-    const res = await request(app)
-      .post("/decode/instructions")
-      .send({
+    const res = await app.inject({
+      method: "POST",
+      url: "/decode/instructions",
+      payload: {
         instructionsPerTransaction: [
           [
             {
@@ -797,10 +800,11 @@ describe("Server API Tests", () => {
             },
           ],
         ],
-      });
+      },
+    });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toMatchObject({
       decodedTransactions: [
         [
           {
@@ -901,9 +905,10 @@ describe("Server API Tests", () => {
   });
 
   it("Decodes error messages", async () => {
-    const res = await request(app)
-      .post("/decode/errors")
-      .send({
+    const res = await app.inject({
+      method: "POST",
+      url: "/decode/errors",
+      payload: {
         errors: [
           {
             programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
@@ -919,10 +924,11 @@ describe("Server API Tests", () => {
             errorCode: "0x23",
           },
         ],
-      });
+      },
+    });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toMatchObject({
       decodedErrors: [
         {
           decodedMessage: "Slippage tolerance exceeded",

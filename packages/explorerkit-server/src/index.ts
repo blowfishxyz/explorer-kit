@@ -4,12 +4,16 @@ import { initSharedDependencies } from "@/core/shared-dependencies";
 import { app } from "@/server";
 
 async function main() {
-  await initSharedDependencies();
-  initIdlsRefreshBackgroundJob(config.IDL_REFRESH_INTERVAL_MS);
-  app.listen(config.PORT);
+  try {
+    await initSharedDependencies();
+    initIdlsRefreshBackgroundJob(config.IDL_REFRESH_INTERVAL_MS);
 
-  // eslint-disable-next-line no-console
-  console.log(`Server started on port ${config.PORT}`);
+    await app.listen({ port: config.PORT });
+    app.log.info(`Server started on port ${config.PORT}`);
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
+  }
 }
 
 void main();
