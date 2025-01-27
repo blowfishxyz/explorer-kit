@@ -55,7 +55,7 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
         idls.set(programId, cachedIdl && new SolanaFMParser(cachedIdl.idl, programId));
       }
 
-      if (cachedIdl.expiresAt.getTime() < Date.now()) {
+      if (new Date(cachedIdl.expiresAt).getTime() < Date.now()) {
         addIdlToRefreshQueue(programId);
       }
     })
@@ -64,7 +64,9 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   return idls;
 }
 
-export type MaybeIdl = { type: "MISSING"; expiresAt: Date } | { type: "IDL"; idl: IdlItem; expiresAt: Date };
+export type MaybeIdl =
+  | { type: "MISSING"; expiresAt: number | string }
+  | { type: "IDL"; idl: IdlItem; expiresAt: number | string };
 
 const idlRefreshQueue = new Set<string>();
 
@@ -144,5 +146,7 @@ export function initIdlsRefreshBackgroundJob(idlRefreshIntervalMs: number) {
 }
 
 const intoMaybeIdl = (idl: IdlItem | null, expiresAt: Date): MaybeIdl => {
-  return idl === null ? { type: "MISSING", expiresAt } : { type: "IDL", idl, expiresAt };
+  return idl === null
+    ? { type: "MISSING", expiresAt: expiresAt.getTime() }
+    : { type: "IDL", idl, expiresAt: expiresAt.getTime() };
 };
