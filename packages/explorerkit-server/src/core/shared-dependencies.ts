@@ -1,13 +1,14 @@
+import { MaybeIdl } from "@/components/idls";
 import { createCache } from "@/core/cache";
 
 type SharedDependencies = {
-  cache: Awaited<ReturnType<typeof createCache>>;
+  cache: Awaited<ReturnType<typeof createCache<MaybeIdl>>>;
 };
 
 let sharedDependencies: SharedDependencies | null = null;
 
 export async function initSharedDependencies(): Promise<SharedDependencies> {
-  const cache = await createCache();
+  const cache = await createCache<MaybeIdl>();
 
   sharedDependencies = {
     cache,
