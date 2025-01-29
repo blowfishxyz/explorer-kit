@@ -6,22 +6,22 @@ import { register } from "@/components/metrics";
 import { config } from "@/core/config";
 import { onTeardown } from "@/utils/teardown";
 
-const LRU_CACHE_MAX_ITEMS_COUNT = 100;
+const LRU_CACHE_MAX_ITEMS_COUNT = 200;
 
 type CacheMetricGauges = {
   hits: Gauge<string>;
   misses: Gauge<string>;
 };
 
-class MultiCache {
+class MultiCache<T extends {}> {
   constructor(
     private redis: RedisClientType,
-    private lruCache: LRUCache<string, string>,
+    private lruCache: LRUCache<string, T>,
     private guages: CacheMetricGauges
   ) {}
 
-  async multiGet(keys: string[], ttlInS: number = 0): Promise<(string | null)[]> {
-    const items: Record<string, string | null> = {};
+  async multiGet(keys: string[], ttlInS: number = 0): Promise<(T | null)[]> {
+    const items: Record<string, T | null> = {};
     const missingLruKeys: string[] = [];
 
     for (const key of keys) {
@@ -40,14 +40,15 @@ class MultiCache {
     if (missingLruKeys.length > 0) {
       const redisItems = await this.redis.mGet(missingLruKeys);
 
-      for (const [i, maybeIdl] of redisItems.entries()) {
+      for (const [i, cachedStringVal] of redisItems.entries()) {
         const key = missingLruKeys[i]!;
-        items[key] = maybeIdl;
-        if (maybeIdl) {
+        const parsedValue = safeParse<T>(cachedStringVal);
+        items[key] = parsedValue;
+        if (parsedValue) {
           this.guages.hits.inc({
             cache: "redis",
           });
-          this.lruCache.set(key, maybeIdl, {
+          this.lruCache.set(key, parsedValue, {
             ttl: ttlInS * 1000,
           });
         } else {
@@ -59,12 +60,12 @@ class MultiCache {
     return keys.map((key) => items[key] ?? null);
   }
 
-  async set(key: string, value: string, ttlInS: number = 0): Promise<void> {
+  async set(key: string, value: T, ttlInS: number = 0): Promise<void> {
     this.lruCache.set(key, value, {
       ttl: ttlInS * 1000,
     });
 
-    await this.redis.set(key, value, {
+    await this.redis.set(key, JSON.stringify(value), {
       EX: ttlInS,
     });
   }
@@ -74,13 +75,24 @@ class MultiCache {
   }
 }
 
-export async function createCache(): Promise<MultiCache> {
+function safeParse<T>(value: string | null): T | null {
+  if (value === null) {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function createCache<T extends {}>(): Promise<MultiCache<T>> {
   const redisClient = createClient({
     url: config.REDIS_URL,
   });
   await redisClient.connect();
 
-  const lruCache = new LRUCache<string, string>({
+  const lruCache = new LRUCache<string, T>({
     max: LRU_CACHE_MAX_ITEMS_COUNT,
     updateAgeOnGet: true,
   });

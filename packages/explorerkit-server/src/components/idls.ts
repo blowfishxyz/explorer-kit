@@ -34,7 +34,7 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   const cachedIdlByProgramId = cachedIdls.reduce((acc, idl, i) => {
     const programId = programIds[i]!;
     if (idl) {
-      acc.set(programId, deserializeIdl(idl));
+      acc.set(programId, idl);
     }
     return acc;
   }, new Map<string, MaybeIdl | null>());
@@ -45,8 +45,8 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
 
       if (!cachedIdl) {
         const idl = await getProgramIdl(programId);
-        const serializedIdl = serializeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
-        void cache.set(programId, serializedIdl, IDL_CACHE_TTL);
+        const maybeIdl = intoMaybeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
+        void cache.set(programId, maybeIdl, IDL_CACHE_TTL);
         idls.set(programId, idl && new SolanaFMParser(idl, programId));
         return;
       }
@@ -55,7 +55,7 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
         idls.set(programId, cachedIdl && new SolanaFMParser(cachedIdl.idl, programId));
       }
 
-      if (cachedIdl.expiresAt.getTime() < Date.now()) {
+      if (new Date(cachedIdl.expiresAt).getTime() < Date.now()) {
         addIdlToRefreshQueue(programId);
       }
     })
@@ -64,7 +64,9 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   return idls;
 }
 
-type MaybeIdl = { type: "MISSING"; expiresAt: Date } | { type: "IDL"; idl: IdlItem; expiresAt: Date };
+export type MaybeIdl =
+  | { type: "MISSING"; expiresAt: number | string }
+  | { type: "IDL"; idl: IdlItem; expiresAt: number | string };
 
 const idlRefreshQueue = new Set<string>();
 
@@ -95,9 +97,9 @@ export async function refreshIdlsInQueue() {
 
     for (const programId of programIds) {
       const idl = idlsByProgramId.get(programId) ?? null;
-      const serializedIdl = serializeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
+      const maybeIdl = intoMaybeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
 
-      await cache.set(programId, serializedIdl, IDL_CACHE_TTL).catch((error) => {
+      await cache.set(programId, maybeIdl, IDL_CACHE_TTL).catch((error) => {
         console.error("Error caching idl", error);
       });
 
@@ -143,18 +145,8 @@ export function initIdlsRefreshBackgroundJob(idlRefreshIntervalMs: number) {
   }, idlRefreshIntervalMs);
 }
 
-const deserializeIdl = (idl: string): MaybeIdl | null => {
-  try {
-    const item = JSON.parse(idl) as MaybeIdl;
-    item.expiresAt = new Date(item.expiresAt || 0);
-
-    return item;
-  } catch (e) {
-    return null;
-  }
-};
-
-const serializeIdl = (idl: IdlItem | null, expiresAt: Date): string => {
-  const maybeIdl: MaybeIdl = idl === null ? { type: "MISSING", expiresAt } : { type: "IDL", idl, expiresAt };
-  return JSON.stringify(maybeIdl);
+const intoMaybeIdl = (idl: IdlItem | null, expiresAt: Date): MaybeIdl => {
+  return idl === null
+    ? { type: "MISSING", expiresAt: expiresAt.getTime() }
+    : { type: "IDL", idl, expiresAt: expiresAt.getTime() };
 };

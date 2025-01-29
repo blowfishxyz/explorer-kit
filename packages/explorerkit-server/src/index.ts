@@ -8,7 +8,7 @@ async function main() {
     await initSharedDependencies();
     initIdlsRefreshBackgroundJob(config.IDL_REFRESH_INTERVAL_MS);
 
-    await app.listen({ port: config.PORT });
+    await app.listen({ port: config.PORT, host: "0.0.0.0" });
     app.log.info(`Server started on port ${config.PORT}`);
   } catch (err) {
     app.log.error(err);
