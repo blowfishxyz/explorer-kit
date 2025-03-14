@@ -76,7 +76,7 @@ const IN_MEMORY_PROGRAM_IDLS: Map<String, IdlItem> = new Map([
     {
       idl: require("./idls/okx_aggregator.json"),
       programId: "6m2CDdhRgxpH4WjvdzxAYbGxwdGUz5MziiL5jek2kBma",
-      idlType: "anchor",
+      idlType: "anchorV1",
     },
   ],
   [
