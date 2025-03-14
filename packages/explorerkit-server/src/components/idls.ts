@@ -41,16 +41,10 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
 
   await Promise.allSettled(
     programIds.map(async (programId) => {
-      const inMemoryIdl = getInMemoryProgramIdl(programId);
-
-      if (inMemoryIdl) {
-        idls.set(programId, inMemoryIdl && new SolanaFMParser(inMemoryIdl, programId));
-        return;
-      }
       const cachedIdl = cachedIdlByProgramId.get(programId);
 
       if (!cachedIdl) {
-        const idl = await getProgramIdl(programId);
+        const idl = await getProgramIdlInternal(programId);
         const maybeIdl = intoMaybeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
         void cache.set(programId, maybeIdl, IDL_CACHE_TTL);
         idls.set(programId, idl && new SolanaFMParser(idl, programId));
@@ -89,9 +83,13 @@ const IN_MEMORY_PROGRAM_IDLS: Map<String, IdlItem> = new Map([
   ],
 ]);
 
-const getInMemoryProgramIdl = (programId: string): IdlItem | null => {
+function getInMemoryProgramIdl(programId: string): IdlItem | null {
   return IN_MEMORY_PROGRAM_IDLS.get(programId) || null;
-};
+}
+
+async function getProgramIdlInternal(programId: string): Promise<IdlItem | null> {
+  return getInMemoryProgramIdl(programId) || (await getProgramIdl(programId));
+}
 
 export type MaybeIdl =
   | { type: "MISSING"; expiresAt: number | string }
