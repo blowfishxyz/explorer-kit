@@ -404,7 +404,12 @@
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "bump",
+          "type": "u8"
+        }
+      ]
     },
     {
       "name": "exact_out_route",
@@ -1699,6 +1704,9 @@
           },
           {
             "name": "PumpdotfunAmmSell"
+          },
+          {
+            "name": "Gamma"
           }
         ]
       }

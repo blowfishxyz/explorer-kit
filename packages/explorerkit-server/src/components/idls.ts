@@ -1,3 +1,4 @@
+import { Program } from "@coral-xyz/anchor";
 import { SolanaFMParser } from "@solanafm/explorer-kit";
 import { getMultipleProgramIdls, getProgramIdl, IdlItem } from "@solanafm/explorer-kit-idls";
 import { Gauge, Histogram } from "prom-client";
@@ -29,21 +30,10 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
     return idls;
   }
 
-  const restProgramIds: string[] = [];
-  for (const programId of programIds) {
-    const inMemoryIdl = getInMemoryProgramIdl(programId);
-
-    if (inMemoryIdl) {
-      idls.set(programId, new SolanaFMParser(inMemoryIdl, inMemoryIdl.programId));
-    } else {
-      restProgramIds.push(programId);
-    }
-  }
-
   const cache = getSharedDep("cache");
-  const cachedIdls = await cache.multiGet(restProgramIds, IDL_STALE_TIME);
+  const cachedIdls = await cache.multiGet(programIds, IDL_STALE_TIME);
   const cachedIdlByProgramId = cachedIdls.reduce((acc, idl, i) => {
-    const programId = restProgramIds[i]!;
+    const programId = programIds[i]!;
     if (idl) {
       acc.set(programId, idl);
     }
@@ -51,11 +41,11 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   }, new Map<string, MaybeIdl | null>());
 
   await Promise.allSettled(
-    restProgramIds.map(async (programId) => {
+    programIds.map(async (programId) => {
       const cachedIdl = cachedIdlByProgramId.get(programId);
 
       if (!cachedIdl) {
-        const idl = await getProgramIdl(programId);
+        const idl = await getProgramIdlInternal(programId);
         const maybeIdl = intoMaybeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
         void cache.set(programId, maybeIdl, IDL_CACHE_TTL);
         idls.set(programId, idl && new SolanaFMParser(idl, programId));
@@ -75,27 +65,19 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   return idls;
 }
 
-const IN_MEMORY_PROGRAM_IDLS: Map<String, IdlItem> = new Map([
-  [
-    "6m2CDdhRgxpH4WjvdzxAYbGxwdGUz5MziiL5jek2kBma",
-    {
-      idl: require("./idls/okx_aggregator.json"),
-      programId: "6m2CDdhRgxpH4WjvdzxAYbGxwdGUz5MziiL5jek2kBma",
-      idlType: "anchorV1",
-    },
-  ],
-  [
-    "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
-    {
-      idl: require("./idls/jup6.json"),
-      programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
-      idlType: "anchorV1",
-    },
-  ],
-]);
+async function getProgramIdlInternal(programId: string): Promise<IdlItem | null> {
+  const explorerKitFetch = getProgramIdl(programId);
+  const anchorIdl = await Program.fetchIdl(programId, getSharedDep("anchorProvider")).catch(() => null);
 
-function getInMemoryProgramIdl(programId: string): IdlItem | null {
-  return IN_MEMORY_PROGRAM_IDLS.get(programId) || null;
+  if (anchorIdl) {
+    return {
+      idl: anchorIdl,
+      programId,
+      idlType: "anchorV1",
+    };
+  }
+
+  return explorerKitFetch;
 }
 
 export type MaybeIdl =

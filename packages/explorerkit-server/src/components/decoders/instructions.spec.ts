@@ -1,36 +1,8 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { decodeInstruction } from "@/components/decoders/instructions";
 import { addIdlToRefreshQueue, loadAllIdls, refreshIdlsInQueue } from "@/components/idls";
-
-vi.mock("@/core/shared-dependencies", (loadActual) => {
-  class MultiCacheMock {
-    private data: Record<string, string> = {};
-
-    async get(key: string) {
-      return this.data[key] || null;
-    }
-
-    async multiGet(keys: string[]) {
-      return keys.map((key) => this.data[key] || null);
-    }
-
-    async set(key: string, value: string) {
-      this.data[key] = value;
-    }
-  }
-
-  const deps = {
-    cache: new MultiCacheMock(),
-  };
-
-  return {
-    ...loadActual(),
-    initSharedDependencies: () => {},
-    getSharedDep: (name: keyof typeof deps) => deps[name],
-    getSharedDeps: () => deps,
-  };
-});
+import { initSharedDependencies } from "@/core/shared-dependencies";
 
 describe("instructions", () => {
   let idls = new Map();
@@ -42,9 +14,9 @@ describe("instructions", () => {
 
   beforeAll(async () => {
     addIdlToRefreshQueue("ComputeBudget111111111111111111111111111111");
+    await initSharedDependencies();
     await refreshIdlsInQueue();
     idls = await loadAllIdls([instruction.programId, "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"]);
-    console.log(idls);
   });
 
   describe("decodeInstruction", () => {
