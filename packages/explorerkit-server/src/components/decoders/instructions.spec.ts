@@ -1,8 +1,25 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { decodeInstruction } from "@/components/decoders/instructions";
-import { addIdlToRefreshQueue, loadAllIdls, refreshIdlsInQueue } from "@/components/idls";
+import { addIdlToRefreshQueue, loadAllIdls, MaybeIdl, refreshIdlsInQueue } from "@/components/idls";
+import * as sharedDeps from "@/core/shared-dependencies";
 import { initSharedDependencies } from "@/core/shared-dependencies";
+
+class InMemoryMultiCache<T extends {}> {
+  private cache: Map<string, T> = new Map();
+
+  async multiGet(keys: string[], _ttlInS: number = 0): Promise<(T | null)[]> {
+    return keys.map((key) => this.cache.get(key) || null);
+  }
+
+  async set(key: string, value: T, _ttlInS: number = 0): Promise<void> {
+    this.cache.set(key, value);
+  }
+
+  async teardown() {
+    // No-op
+  }
+}
 
 describe("instructions", () => {
   let idls = new Map();
@@ -11,6 +28,18 @@ describe("instructions", () => {
     encodedData: "3ta97iYzVb3u",
     programId: "ComputeBudget111111111111111111111111111111",
   };
+
+  beforeEach(() => {
+    // Create and use in-memory cache for tests
+    const inMemoryCache = new InMemoryMultiCache<MaybeIdl>();
+    const getSharedDepsOriginal = sharedDeps.getSharedDep;
+    vi.spyOn(sharedDeps, "getSharedDep").mockImplementation((service) => {
+      if (service === "cache") {
+        return inMemoryCache as any;
+      }
+      return getSharedDepsOriginal(service);
+    });
+  });
 
   beforeAll(async () => {
     addIdlToRefreshQueue("ComputeBudget111111111111111111111111111111");
