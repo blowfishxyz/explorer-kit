@@ -29,10 +29,21 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
     return idls;
   }
 
+  const restProgramIds: string[] = [];
+  for (const programId of programIds) {
+    const inMemoryIdl = getInMemoryProgramIdl(programId);
+
+    if (inMemoryIdl) {
+      idls.set(programId, new SolanaFMParser(inMemoryIdl, inMemoryIdl.programId));
+    } else {
+      restProgramIds.push(programId);
+    }
+  }
+
   const cache = getSharedDep("cache");
-  const cachedIdls = await cache.multiGet(programIds, IDL_STALE_TIME);
+  const cachedIdls = await cache.multiGet(restProgramIds, IDL_STALE_TIME);
   const cachedIdlByProgramId = cachedIdls.reduce((acc, idl, i) => {
-    const programId = programIds[i]!;
+    const programId = restProgramIds[i]!;
     if (idl) {
       acc.set(programId, idl);
     }
@@ -40,11 +51,11 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   }, new Map<string, MaybeIdl | null>());
 
   await Promise.allSettled(
-    programIds.map(async (programId) => {
+    restProgramIds.map(async (programId) => {
       const cachedIdl = cachedIdlByProgramId.get(programId);
 
       if (!cachedIdl) {
-        const idl = await getProgramIdlInternal(programId);
+        const idl = await getProgramIdl(programId);
         const maybeIdl = intoMaybeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
         void cache.set(programId, maybeIdl, IDL_CACHE_TTL);
         idls.set(programId, idl && new SolanaFMParser(idl, programId));
@@ -85,10 +96,6 @@ const IN_MEMORY_PROGRAM_IDLS: Map<String, IdlItem> = new Map([
 
 function getInMemoryProgramIdl(programId: string): IdlItem | null {
   return IN_MEMORY_PROGRAM_IDLS.get(programId) || null;
-}
-
-async function getProgramIdlInternal(programId: string): Promise<IdlItem | null> {
-  return getInMemoryProgramIdl(programId) || (await getProgramIdl(programId));
 }
 
 export type MaybeIdl =
