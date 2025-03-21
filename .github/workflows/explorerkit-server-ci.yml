@@ -27,7 +27,7 @@ jobs:
       - name: Install Node Modules
         run: pnpm install
       - name: Build workspace
-        run: pnpm --filter "./packages/explorerkit-*" build
+        run: pnpm build
       - name: Run ExplorerKit Server Lint
         run: pnpm lint
         working-directory: ./packages/explorerkit-server
