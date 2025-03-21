@@ -1,6 +1,6 @@
 import { Program } from "@coral-xyz/anchor";
 import { SolanaFMParser } from "@solanafm/explorer-kit";
-import { getMultipleProgramIdls, getProgramIdl, IdlItem } from "@solanafm/explorer-kit-idls";
+import { getProgramIdl, IdlItem } from "@solanafm/explorer-kit-idls";
 import { Gauge, Histogram } from "prom-client";
 
 import { register } from "@/components/metrics";
@@ -63,6 +63,11 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   );
 
   return idls;
+}
+
+async function getMultipleProgramIdls(programIds: string[]): Promise<IdlItem[]> {
+  const idls = await Promise.all(programIds.map(getProgramIdlInternal));
+  return idls.filter((idl): idl is IdlItem => idl !== null);
 }
 
 async function getProgramIdlInternal(programId: string): Promise<IdlItem | null> {
