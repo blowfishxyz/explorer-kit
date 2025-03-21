@@ -7,11 +7,22 @@ on:
 
 env:
   REDIS_URL: redis://localhost:6379
+  RPC_CONFIGS_SOLANA_MAINNET: '[{"url":"https://api.mainnet-beta.solana.com"}]'
 
 jobs:
   run-test-cases:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -27,7 +38,7 @@ jobs:
       - name: Install Node Modules
         run: pnpm install
       - name: Build workspace
-        run: pnpm --filter "./packages/explorerkit-*" build
+        run: pnpm build
       - name: Run ExplorerKit Server Lint
         run: pnpm lint
         working-directory: ./packages/explorerkit-server
