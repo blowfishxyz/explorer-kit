@@ -1,25 +1,44 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import { clusterApiUrl, Connection, Keypair } from "@solana/web3.js";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { decodeInstruction } from "@/components/decoders/instructions";
-import { addIdlToRefreshQueue, loadAllIdls, MaybeIdl, refreshIdlsInQueue } from "@/components/idls";
-import * as sharedDeps from "@/core/shared-dependencies";
+import { addIdlToRefreshQueue, loadAllIdls, refreshIdlsInQueue } from "@/components/idls";
 import { initSharedDependencies } from "@/core/shared-dependencies";
 
-class InMemoryMultiCache<T extends {}> {
-  private cache: Map<string, T> = new Map();
+vi.mock("@/core/shared-dependencies", (loadActual) => {
+  class MultiCacheMock {
+    private data: Record<string, string> = {};
 
-  async multiGet(keys: string[], _ttlInS: number = 0): Promise<(T | null)[]> {
-    return keys.map((key) => this.cache.get(key) || null);
+    async get(key: string) {
+      return this.data[key] || null;
+    }
+
+    async multiGet(keys: string[]) {
+      return keys.map((key) => this.data[key] || null);
+    }
+
+    async set(key: string, value: string) {
+      this.data[key] = value;
+    }
   }
 
-  async set(key: string, value: T, _ttlInS: number = 0): Promise<void> {
-    this.cache.set(key, value);
-  }
+  const deps = {
+    cache: new MultiCacheMock(),
+    anchorProvider: new AnchorProvider(
+      new Connection(clusterApiUrl("mainnet-beta")),
+      new Wallet(Keypair.generate()),
+      {}
+    ),
+  };
 
-  async teardown() {
-    // No-op
-  }
-}
+  return {
+    ...loadActual(),
+    initSharedDependencies: () => {},
+    getSharedDep: (name: keyof typeof deps) => deps[name],
+    getSharedDeps: () => deps,
+  };
+});
 
 describe("instructions", () => {
   let idls = new Map();
@@ -28,18 +47,6 @@ describe("instructions", () => {
     encodedData: "3ta97iYzVb3u",
     programId: "ComputeBudget111111111111111111111111111111",
   };
-
-  beforeEach(() => {
-    // Create and use in-memory cache for tests
-    const inMemoryCache = new InMemoryMultiCache<MaybeIdl>();
-    const getSharedDepsOriginal = sharedDeps.getSharedDep;
-    vi.spyOn(sharedDeps, "getSharedDep").mockImplementation((service) => {
-      if (service === "cache") {
-        return inMemoryCache as any;
-      }
-      return getSharedDepsOriginal(service);
-    });
-  });
 
   beforeAll(async () => {
     addIdlToRefreshQueue("ComputeBudget111111111111111111111111111111");
