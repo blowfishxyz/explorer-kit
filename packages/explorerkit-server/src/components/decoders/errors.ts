@@ -16,7 +16,12 @@ export function decodeProgramError(idls: IdlsMap, programError: ProgramError): P
   }
 
   const hexErrorCode = `0x${programError.errorCode.toString(16)}`;
-  const errorParser = parser.createParser(ParserType.ERROR);
+  let errorParser;
+  try {
+    errorParser = parser.createParser(ParserType.ERROR);
+  } catch {
+    return programError;
+  }
 
   if (!errorParser || !checkIfErrorsParser(errorParser)) {
     return programError;

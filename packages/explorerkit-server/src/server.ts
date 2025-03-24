@@ -75,8 +75,12 @@ app.post<{ Body: DecodeAccountsRequestBody }>(
           continue;
         }
 
-        // Parse the account
-        const accountParser = parser.createParser(ParserType.ACCOUNT);
+        let accountParser;
+        try {
+          accountParser = parser.createParser(ParserType.ACCOUNT);
+        } catch {
+          continue;
+        }
 
         if (!accountParser || !checkIfAccountParser(accountParser)) {
           decodedAccounts.push({ decodedData: null });
