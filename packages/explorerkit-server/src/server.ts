@@ -103,6 +103,7 @@ app.post<{ Body: DecodeAccountsRequestBody }>(
 
       return reply.send({ decodedAccounts });
     } catch (e: any) {
+      console.error(e);
       request.log.error("failed to decode accounts", e);
       return reply.status(500).send({ error: e.message });
     }

@@ -78,7 +78,7 @@ async function getProgramIdlInternal(programId: string): Promise<IdlItem | null>
     return {
       idl: anchorIdl,
       programId,
-      idlType: "anchorV1",
+      idlType: anchorIdl.version ? "anchor" : "anchorV1",
     };
   }
 

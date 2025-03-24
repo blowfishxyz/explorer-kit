@@ -71,6 +71,81 @@ describe("Server API Tests", () => {
     });
   });
 
+  it("decodes bid account properly", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/decode/accounts",
+      payload: {
+        accounts: [
+          {
+            ownerProgram: "mmm3XBJg5gk8XJxEKBvdgptZz6SgK4tXvn36sodowMc",
+            data: "8ZptBBGxbbzgRKMAAAAAAAEAAAAAAAAAAAAAyAEKaAAAAAAAAHFCN/cMRn4LOnoO/r6kmKE061M8JsnXBHFy4ZNXQ/JfAAAQJ0zufPV2spaZ95NZ+dckOKecm1kc7wAwcpVP12ZpS/smAAAAAAAAAAAAAAAAAAAAAJFdxOK7UMF2mQdngDZMZeGqdi8416DWf7XEa6aQITPNBX82VZkozhurrbZbi12eMbon+FOb7GAsyxrcKvufRnBJmSpZ2osBx1xOP/NUUp8gWwa5+/CBmpQfr4c65YPZyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUzufPV2spaZ95NZ+dckOKecm1kc7wAwcpVP12ZpS/smAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ESjAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({
+      decodedAccounts: [
+        {
+          decodedData: {
+            owner: "mmm3XBJg5gk8XJxEKBvdgptZz6SgK4tXvn36sodowMc",
+            name: "Pool",
+            data: {
+              spotPrice: "10700000",
+              curveType: 1,
+              curveDelta: "0",
+              reinvestFulfillBuy: false,
+              reinvestFulfillSell: false,
+              expiry: "1745486280",
+              lpFeeBp: 0,
+              referral: "8d7dmXFxP9YKubdfo3JeFYUYfC1C65HHtw9tAGsg934z",
+              referralBp: 0,
+              buysideCreatorRoyaltyBp: 10000,
+              cosignerAnnotation: "TO589Xaylpn3k1n51yQ4p5ybWRzvADBylU/XZmlL+yY=",
+              sellsideAssetAmount: "0",
+              lpFeeEarned: "0",
+              owner: "AnT3fqrEPSH1poYFNXVvcjoSVgttn2HwURUZoWM8FJv8",
+              cosigner: "NTYeYJ1wr4bpM5xo6zx5En44SvJFAd35zTxxNoERYqd",
+              uuid: "5xJDtZGdD7ZbpcBWr2SeUnPKTEVfPqy35oLYXvCzzZ43",
+              paymentMint: "11111111111111111111111111111111",
+              allowlists: [
+                {
+                  kind: 1,
+                  value: "6BJuVsENAMUEvR9ftviSVb5JokS12pF3FF2EnExdc2UD",
+                },
+                {
+                  kind: 0,
+                  value: "11111111111111111111111111111111",
+                },
+                {
+                  kind: 0,
+                  value: "11111111111111111111111111111111",
+                },
+                {
+                  kind: 0,
+                  value: "11111111111111111111111111111111",
+                },
+                {
+                  kind: 0,
+                  value: "11111111111111111111111111111111",
+                },
+                {
+                  kind: 0,
+                  value: "11111111111111111111111111111111",
+                },
+              ],
+              buysidePaymentAmount: "10700000",
+              sharedEscrowAccount: "11111111111111111111111111111111",
+              sharedEscrowCount: "0",
+            },
+          },
+        },
+      ],
+    });
+  });
+
   it("Decodes instructions correctly", async () => {
     const res = await app.inject({
       method: "POST",
