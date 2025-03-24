@@ -30,17 +30,23 @@ export function decodeInstruction(idls: IdlsMap, instruction: Instruction): Inst
     return parsedInstruction; // Short-circuit without decodedData parser can't be created
   }
 
-  // Parse the transaction
-  const decodedInstruction = instructionParser.parseInstructions(instruction.encodedData, instruction.accountKeys);
-  const decodedInstructionWithTypes = instructionParser.parseInstructions(
-    instruction.encodedData,
-    instruction.accountKeys,
-    true
-  );
-  const finalDecodedInstructionData = postProcessDecodedInstruction(
-    decodedInstruction?.data,
-    decodedInstructionWithTypes?.data
-  );
+  let decodedInstruction;
+  let finalDecodedInstructionData;
+
+  try {
+    // Parse the transaction
+    decodedInstruction = instructionParser.parseInstructions(instruction.encodedData, instruction.accountKeys);
+    const decodedInstructionWithTypes = instructionParser.parseInstructions(
+      instruction.encodedData,
+      instruction.accountKeys,
+      true
+    );
+    finalDecodedInstructionData = postProcessDecodedInstruction(
+      decodedInstruction?.data,
+      decodedInstructionWithTypes?.data
+    );
+  } catch {}
+
   return {
     programId: instruction.programId,
     encodedData: instruction.encodedData,
