@@ -70,16 +70,30 @@ async function getMultipleProgramIdls(programIds: string[]): Promise<IdlItem[]> 
   return idls.filter((idl): idl is IdlItem => idl !== null);
 }
 
-async function getProgramIdlInternal(programId: string): Promise<IdlItem | null> {
-  const explorerKitFetch = getProgramIdl(programId);
-  const anchorIdl = await Program.fetchIdl(programId, getSharedDep("anchorProvider")).catch(() => null);
+async function getAnchorIdl(programId: string): Promise<IdlItem | null> {
+  try {
+    const idl = await Program.fetchIdl(programId, getSharedDep("anchorProvider"));
 
-  if (anchorIdl) {
+    if (!idl) {
+      return null;
+    }
+
     return {
-      idl: anchorIdl,
+      idl,
       programId,
       idlType: "anchorV1",
     };
+  } catch {
+    return null;
+  }
+}
+
+async function getProgramIdlInternal(programId: string): Promise<IdlItem | null> {
+  const explorerKitFetch = getProgramIdl(programId);
+  const anchorIdl = await getAnchorIdl(programId);
+
+  if (anchorIdl) {
+    return anchorIdl;
   }
 
   return explorerKitFetch;
