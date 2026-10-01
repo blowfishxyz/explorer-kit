@@ -1,13 +1,13 @@
 import { Program } from "@coral-xyz/anchor";
-import { SolanaFMParser } from "@solanafm/explorer-kit";
 import { getProgramIdl, IdlItem } from "@solanafm/explorer-kit-idls";
 import { Gauge, Histogram } from "prom-client";
 
 import { register } from "@/components/metrics";
+import { getProgramParser, ProgramParser } from "@/components/parsers";
 import { getSharedDep } from "@/core/shared-dependencies";
 import { chunkArray } from "@/utils/array";
 
-export type IdlsMap = Map<string, SolanaFMParser | null>;
+export type IdlsMap = Map<string, ProgramParser | null>;
 
 const IDL_STALE_TIME = 3600; // one hour
 const IDL_CACHE_TTL = 86400; // one day
@@ -19,12 +19,14 @@ const IDL_CACHE_TTL = 86400; // one day
  * If the idl is stale, it will still be returned but will be refreshed in the background.
  *
  * Note: If a program IDL is missing in cache the function will try to fetch it in the main request.
+ * Duplicate program ids are loaded once. Parsers are reused while the cached IDL object stays the same.
  *
- * @param {string[]} programIds
- * @returns {Promise<IdlsMap>} A map of program ids to idls
+ * @param {string[]} allProgramIds Program ids. The list can contain duplicates.
+ * @returns {Promise<IdlsMap>} A map of program ids to program parsers
  */
-export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
+export async function loadAllIdls(allProgramIds: string[]): Promise<IdlsMap> {
   const idls: IdlsMap = new Map();
+  const programIds = Array.from(new Set(allProgramIds));
 
   if (programIds.length === 0) {
     return idls;
@@ -45,15 +47,13 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
       const cachedIdl = cachedIdlByProgramId.get(programId);
 
       if (!cachedIdl) {
-        const idl = await getProgramIdlInternal(programId);
-        const maybeIdl = intoMaybeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
-        void cache.set(programId, maybeIdl, IDL_CACHE_TTL);
-        idls.set(programId, idl && new SolanaFMParser(idl, programId));
+        const idl = await fetchMissingIdl(programId);
+        idls.set(programId, idl && getProgramParser(idl, programId));
         return;
       }
 
       if (cachedIdl.type === "IDL") {
-        idls.set(programId, cachedIdl && new SolanaFMParser(cachedIdl.idl, programId));
+        idls.set(programId, getProgramParser(cachedIdl.idl, programId));
       }
 
       if (new Date(cachedIdl.expiresAt).getTime() < Date.now()) {
@@ -63,6 +63,25 @@ export async function loadAllIdls(programIds: string[]): Promise<IdlsMap> {
   );
 
   return idls;
+}
+
+// Concurrent requests for the same missing IDL share one fetch and one cache write.
+const missingIdlFetches = new Map<string, Promise<IdlItem | null>>();
+
+function fetchMissingIdl(programId: string): Promise<IdlItem | null> {
+  let pendingFetch = missingIdlFetches.get(programId);
+
+  if (!pendingFetch) {
+    pendingFetch = (async () => {
+      const idl = await getProgramIdlInternal(programId);
+      const maybeIdl = intoMaybeIdl(idl, new Date(Date.now() + IDL_STALE_TIME * 1000));
+      void getSharedDep("cache").set(programId, maybeIdl, IDL_CACHE_TTL);
+      return idl;
+    })().finally(() => missingIdlFetches.delete(programId));
+    missingIdlFetches.set(programId, pendingFetch);
+  }
+
+  return pendingFetch;
 }
 
 async function getMultipleProgramIdls(programIds: string[]): Promise<IdlItem[]> {
