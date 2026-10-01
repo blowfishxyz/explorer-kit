@@ -17,14 +17,14 @@ jobs:
       - name: Setup pnpm package manager
         uses: pnpm/action-setup@v2
         with:
-          version: 7.18.2
+          version: 9.15.9
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
           node-version: 18
           cache: "pnpm"
       - name: Install Node Modules
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
       - name: Run ExplorerKit Idls Repo Tests
         run: pnpm test
         working-directory: ./packages/explorerkit-idls
