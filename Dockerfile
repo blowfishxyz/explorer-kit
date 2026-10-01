@@ -1,51 +1,53 @@
-FROM node:20
+# syntax=docker/dockerfile:1
 
-# Set the working directory inside the container
+# Build stage: install the full workspace, compile the server and its workspace dependencies,
+# and extract a production-only copy of the server package.
+FROM node:20-bookworm AS build
+
 WORKDIR /usr/src/app
 
-# Install pnpm
-RUN npm install -g pnpm
+RUN corepack enable
 
-# Copy package.json files and workspace config
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY packages/explorerkit-server/package.json ./packages/explorerkit-server/
 COPY packages/explorerkit-idls/package.json ./packages/explorerkit-idls/
 COPY packages/explorerkit-translator/package.json ./packages/explorerkit-translator/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
 COPY packages/eslint-config-explorerkit/package.json ./packages/eslint-config-explorerkit/
 
-# Copy tsconfig files
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
 COPY packages/tsconfig/base.json ./packages/tsconfig/
 COPY packages/explorerkit-server/tsconfig.json ./packages/explorerkit-server/
 COPY packages/explorerkit-idls/tsconfig.json ./packages/explorerkit-idls/
 COPY packages/explorerkit-translator/tsconfig.json ./packages/explorerkit-translator/
-
-# Install dependencies
-RUN pnpm install
-
-# Copy source files
 COPY packages/explorerkit-server/src ./packages/explorerkit-server/src
 COPY packages/explorerkit-idls/src ./packages/explorerkit-idls/src
 COPY packages/explorerkit-translator/src ./packages/explorerkit-translator/src
-COPY packages/eslint-config-explorerkit/index.js ./packages/eslint-config-explorerkit/
 
-# Build the dependencies first
-ENV NODE_ENV="production"
+RUN pnpm --filter "@solanafm/explorer-kit-server..." run build
 
-# Build explorer-kit-idls
-WORKDIR /usr/src/app/packages/explorerkit-idls
-RUN pnpm build
+# `pnpm deploy` copies the server's `dist`, its production dependencies, and the built workspace
+# packages into a standalone directory, without dev dependencies or the pnpm store.
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm --filter @solanafm/explorer-kit-server deploy --prod /prod
 
-# Build explorer-kit-translator
-WORKDIR /usr/src/app/packages/explorerkit-translator
-RUN pnpm build
+# Distroless installs Node.js at /nodejs/bin/node only. The k8s deployment runs `node ./dist/index.js`,
+# so the runtime image needs `node` on PATH. Distroless has no shell, so create the link here.
+RUN mkdir -p /links && ln -s /nodejs/bin/node /links/node
 
-# Set working directory to server package and build it
+# Runtime stage: Node.js and CA certificates only. No shell, no package manager, non-root user.
+FROM gcr.io/distroless/nodejs20-debian12:nonroot
+
+ENV NODE_ENV=production
+
 WORKDIR /usr/src/app/packages/explorerkit-server
-RUN pnpm build
 
-# Expose port
+COPY --from=build /links/ /usr/local/bin/
+COPY --from=build /prod ./
+
 EXPOSE 3000
 
-# Command to run the application
-CMD [ "node", "./dist/index.js" ]
+ENTRYPOINT []
+CMD ["node", "./dist/index.js"]

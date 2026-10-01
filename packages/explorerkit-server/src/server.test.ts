@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { app } from "@/server";
 
-vi.mock("@/core/shared-dependencies", (loadActual) => {
+vi.mock("@/core/shared-dependencies", async (loadActual) => {
+  const { AnchorProvider, Wallet } = await import("@coral-xyz/anchor");
+  const { Connection, Keypair } = await import("@solana/web3.js");
+  const { config } = await import("@/core/config");
+
   class MultiCacheMock {
     private data: Record<string, string> = {};
 
@@ -19,12 +23,18 @@ vi.mock("@/core/shared-dependencies", (loadActual) => {
     }
   }
 
+  // Tests fetch on-chain Anchor IDLs, so the mock needs a real provider.
   const deps = {
     cache: new MultiCacheMock(),
+    anchorProvider: new AnchorProvider(
+      new Connection(config.RPC_CONFIGS_SOLANA_MAINNET[0]!.url),
+      new Wallet(Keypair.generate()),
+      {}
+    ),
   };
 
   return {
-    ...loadActual(),
+    ...(await loadActual<object>()),
     initSharedDependencies: () => {},
     getSharedDep: (name: keyof typeof deps) => deps[name],
     getSharedDeps: () => deps,
