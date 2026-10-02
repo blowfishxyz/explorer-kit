@@ -1,0 +1,197 @@
+name: ExplorerKit Server Image
+
+# Builds the server image for linux/amd64 and linux/arm64 on native runners and
+# publishes one multi-arch image to ghcr.io/blowfishxyz/explorerkit-server.
+#
+# Tags:
+#   sha-<short commit>  every build. Tags are mutable, so pin consumers by digest.
+#   <branch>            each push to main, and each manual run on a branch.
+#   pr-<number>         each pull request from a branch in this repository.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".npmrc"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "packages/explorerkit-server/**"
+      - "packages/explorerkit-idls/**"
+      - "packages/explorerkit-translator/**"
+      - "packages/tsconfig/**"
+      - ".github/workflows/explorerkit-server-image.yml"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".npmrc"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "packages/explorerkit-server/**"
+      - "packages/explorerkit-idls/**"
+      - "packages/explorerkit-translator/**"
+      - "packages/tsconfig/**"
+      - ".github/workflows/explorerkit-server-image.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY_IMAGE: ghcr.io/blowfishxyz/explorerkit-server
+  # Tag pull request images with the head commit, which is the commit the build checks out.
+  DOCKER_METADATA_PR_HEAD_SHA: "true"
+
+jobs:
+  build:
+    # GITHUB_TOKEN is read-only for fork pull requests, so they cannot push.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Push the platform image by digest only. The merge job adds the tags.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=explorerkit-server-${{ matrix.arch }}
+          cache-to: type=gha,scope=explorerkit-server-${{ matrix.arch }},mode=max
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=ref,event=pr
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Create and push multi-arch tags
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          tag_args=()
+          for tag in "${tags[@]}"; do tag_args+=(--tag "$tag"); done
+          sources=()
+          for digest in *; do sources+=("$REGISTRY_IMAGE@sha256:$digest"); done
+          [ "${#sources[@]}" -eq 2 ] || { echo "::error::Expected 2 platform digests, got ${#sources[@]}"; exit 1; }
+
+          docker buildx imagetools create \
+            "${tag_args[@]}" \
+            --annotation "index:org.opencontainers.image.source=$SOURCE_URL" \
+            --annotation "index:org.opencontainers.image.revision=$REVISION" \
+            "${sources[@]}"
+
+          index_digest=$(docker buildx imagetools inspect "${tags[0]}" --format '{{json .Manifest}}' | jq -r .digest)
+          docker buildx imagetools inspect "${tags[0]}"
+          {
+            echo "### Published \`$REGISTRY_IMAGE\`"
+            echo
+            echo "Tags: ${tags[*]##*:}"
+            echo
+            echo "Pin consumers by digest:"
+            echo
+            echo '```'
+            echo "${tags[0]}@$index_digest"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Consumers such as rust-backend CI pull without credentials. A new GHCR
+      # package can start as private, and only a package admin can change that.
+      - name: Check anonymous pull access
+        run: |
+          set -euo pipefail
+          repository="${REGISTRY_IMAGE#ghcr.io/}"
+          tag=$(jq -r '.tags[0]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          tag="${tag##*:}"
+          token=$(curl -fsS "https://ghcr.io/token?scope=repository:$repository:pull" | jq -r .token)
+          status=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $token" \
+            -H "Accept: application/vnd.oci.image.index.v1+json" \
+            "https://ghcr.io/v2/$repository/manifests/$tag")
+          if [ "$status" = "200" ]; then
+            echo "::notice::$REGISTRY_IMAGE:$tag is publicly pullable"
+          else
+            echo "::warning::$REGISTRY_IMAGE:$tag is not publicly pullable (HTTP $status). A package admin must set the package visibility to public."
+          fi
